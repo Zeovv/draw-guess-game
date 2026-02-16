@@ -70,6 +70,20 @@ function App() {
   const [users, setUsers] = useState([]);
   const [showMobileChat, setShowMobileChat] = useState(false);
   const [copied, setCopied] = useState(false);
+  // ========== 游戏流程状态 ==========
+  const [gameState, setGameState] = useState('WAITING'); // 'WAITING', 'SELECTING', 'DRAWING', 'ROUND_END', 'GAME_END'
+  const [timer, setTimer] = useState(0);
+  const [currentWordHint, setCurrentWordHint] = useState('');
+  const [currentWordLength, setCurrentWordLength] = useState(0);
+  const [readyPlayers, setReadyPlayers] = useState([]);
+  const [isReady, setIsReady] = useState(false);
+  const [wordOptions, setWordOptions] = useState([]);
+  const [currentDrawerIndex, setCurrentDrawerIndex] = useState(0);
+  const [scores, setScores] = useState({});
+  const [currentRound, setCurrentRound] = useState(0);
+  const [maxRounds, setMaxRounds] = useState(5);
+  const [isOwner, setIsOwner] = useState(false);
+  const [showWordSelection, setShowWordSelection] = useState(false);
 
   // ========== Canvas 相关 ==========
   const canvasRef = useRef(null);
@@ -137,6 +151,33 @@ function App() {
     navigator.clipboard.writeText(roomId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // 玩家准备/取消准备
+  const handlePlayerReady = (ready) => {
+    socket.emit('player_ready', { roomId, isReady: ready });
+  };
+
+  // 房主开始游戏
+  const handleStartGame = () => {
+    socket.emit('start_game', { roomId });
+  };
+
+  // 画手选择单词
+  const handleSelectWord = (wordIndex) => {
+    socket.emit('select_word', { roomId, wordIndex });
+    setShowWordSelection(false);
+  };
+
+  // 刷新单词选项（请求新单词）
+  const handleRefreshWords = () => {
+    socket.emit('refresh_words', { roomId });
+    // 保持模态框打开，等待新单词选项
+  };
+
+  // 房主开始下一回合
+  const handleNextRound = () => {
+    socket.emit('next_round', { roomId });
   };
 
   // 获取 Canvas 坐标
@@ -225,8 +266,9 @@ function App() {
   // ========== Socket 事件监听 ==========
   useEffect(() => {
     // 角色分配
-    socket.on('role_assigned', ({ isDrawer: assigned }) => {
+    socket.on('role_assigned', ({ isDrawer: assigned, isOwner: owner }) => {
       setIsDrawer(assigned);
+      setIsOwner(owner);
     });
 
     // 接收消息
@@ -235,9 +277,12 @@ function App() {
     });
 
     // 用户加入
-    socket.on('user_joined', ({ users: newUsers, message }) => {
+    socket.on('user_joined', ({ users: newUsers, message, roomState }) => {
       setUsers(newUsers);
       setMessages((prev) => [...prev, { message, isSystem: true }]);
+      if (roomState) {
+        updateGameStateFromRoomState(roomState);
+      }
     });
 
     // 用户离开
@@ -260,6 +305,103 @@ function App() {
       }
     });
 
+    // 游戏状态更新
+    socket.on('game_state_update', (state) => {
+      setGameState(state.gameState);
+      setCurrentDrawerIndex(state.currentDrawerIndex);
+      setCurrentWordHint(state.currentWord?.hint || '');
+      setCurrentWordLength(state.currentWord?.word?.length || 0);
+      setTimer(state.timer);
+      setCurrentRound(state.currentRound);
+      setMaxRounds(state.maxRounds);
+      setScores(state.scores);
+      setReadyPlayers(state.readyPlayers);
+      setWordOptions(state.wordOptions || []);
+    });
+
+    // 计时器更新
+    socket.on('timer_update', ({ timer: newTimer }) => {
+      setTimer(newTimer);
+    });
+
+    // 单词选择
+    socket.on('word_selection', ({ options, timer: selectionTimer }) => {
+      setWordOptions(options);
+      setTimer(selectionTimer);
+      setShowWordSelection(true);
+    });
+
+    // 单词已选择
+    socket.on('word_selected', ({ hint, drawerNickname, wordLength }) => {
+      setCurrentWordHint(hint);
+      setCurrentWordLength(wordLength);
+      setShowWordSelection(false);
+      // 添加系统消息
+      setMessages((prev) => [...prev, {
+        message: `${drawerNickname} 已选择单词，提示: ${hint}`,
+        nickname: '系统',
+        isSystem: true
+      }]);
+    });
+
+    // 玩家准备状态更新
+    socket.on('player_ready_update', ({ userId, nickname: playerNickname, isReady: playerReady, readyPlayers: newReadyPlayers }) => {
+      setReadyPlayers(newReadyPlayers);
+      // 更新本地玩家的准备状态
+      if (userId === socket.id) {
+        setIsReady(playerReady);
+      }
+      // 添加系统消息
+      setMessages((prev) => [...prev, {
+        message: `${playerNickname} ${playerReady ? '已准备' : '取消准备'}`,
+        nickname: '系统',
+        isSystem: true
+      }]);
+    });
+
+    // 分数更新
+    socket.on('score_update', ({ userId, score, nickname: playerNickname }) => {
+      setScores(prev => ({ ...prev, [userId]: score }));
+      // 添加系统消息
+      setMessages((prev) => [...prev, {
+        message: `${playerNickname} 得分: ${score}`,
+        nickname: '系统',
+        isSystem: true
+      }]);
+    });
+
+    // 回合结束
+    socket.on('round_end', ({ reason, currentWord, scores: roundScores, nextDrawerIndex }) => {
+      setGameState('ROUND_END');
+      setCurrentDrawerIndex(nextDrawerIndex);
+      setScores(roundScores);
+      // 添加系统消息
+      const wordText = currentWord ? `"${currentWord.word}"` : '未知单词';
+      setMessages((prev) => [...prev, {
+        message: `回合结束！单词是 ${wordText}。原因: ${reason === 'timeout' ? '时间到' : '全部猜对'}`,
+        nickname: '系统',
+        isSystem: true
+      }]);
+    });
+
+    // 游戏结束
+    socket.on('game_end', ({ scores: finalScores, winner }) => {
+      setGameState('GAME_END');
+      setScores(finalScores);
+      // 添加系统消息
+      const winnerText = winner.winners.join(', ');
+      setMessages((prev) => [...prev, {
+        message: `游戏结束！获胜者: ${winnerText}，分数: ${winner.score}`,
+        nickname: '系统',
+        isSystem: true
+      }]);
+    });
+
+    // 错误处理
+    socket.on('error', ({ message }) => {
+      alert(`错误: ${message}`);
+    });
+
     return () => {
       socket.off('role_assigned');
       socket.off('receive_message');
@@ -267,8 +409,30 @@ function App() {
       socket.off('user_left');
       socket.off('draw_line');
       socket.off('clear_canvas');
+      socket.off('game_state_update');
+      socket.off('timer_update');
+      socket.off('word_selection');
+      socket.off('word_selected');
+      socket.off('player_ready_update');
+      socket.off('score_update');
+      socket.off('round_end');
+      socket.off('game_end');
+      socket.off('error');
     };
   }, [roomId]);
+
+  // 工具函数：从房间状态更新游戏状态
+  const updateGameStateFromRoomState = (roomState) => {
+    setGameState(roomState.gameState);
+    setCurrentDrawerIndex(roomState.currentDrawerIndex);
+    setCurrentWordHint(roomState.currentWord?.hint || '');
+    setCurrentWordLength(roomState.currentWord?.word?.length || 0);
+    setTimer(roomState.timer);
+    setCurrentRound(roomState.currentRound);
+    setMaxRounds(roomState.maxRounds);
+    setScores(roomState.scores);
+    setReadyPlayers(roomState.readyPlayers);
+  };
 
   // 初始化 Canvas 大小
   useEffect(() => {
@@ -477,13 +641,13 @@ function App() {
 
           {/* 玩家数量和时间 */}
           <div className="flex items-center gap-3">
-            {/* 剩余时间胶囊 - 示例，需要实际时间状态 */}
+            {/* 剩余时间胶囊 - 实际时间状态 */}
             <motion.div
               className="badge badge-warm flex items-center gap-1 px-3 py-1.5 rounded-full"
               whileHover={{ scale: 1.05 }}
             >
               <Clock className="w-4 h-4" />
-              <span className="font-bold">60s</span>
+              <span className="font-bold">{timer}s</span>
             </motion.div>
 
             <motion.div
@@ -510,6 +674,134 @@ function App() {
           </div>
         </div>
       </header>
+
+      {/* 游戏状态横幅 */}
+      {gameState !== 'WAITING' && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b border-blue-100 px-4 py-2"
+        >
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2">
+            <div className="flex items-center gap-4">
+              <span className="font-bold text-blue-800">第 {currentRound + 1} / {maxRounds} 轮</span>
+              {gameState === 'SELECTING' && (
+                <span className="text-blue-600">
+                  {isDrawer ? '请选择一个单词' : `等待 ${users[currentDrawerIndex]?.nickname || '画手'} 选词中...`}
+                </span>
+              )}
+              {gameState === 'DRAWING' && (
+                <>
+                  <span className="text-green-800 font-bold">提示: {currentWordHint}</span>
+                  <span className="text-gray-600">({currentWordLength}个字)</span>
+                </>
+              )}
+              {gameState === 'ROUND_END' && (
+                <div className="flex items-center gap-4">
+                  <span className="text-purple-800">回合结束</span>
+                  {isOwner && (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleNextRound}
+                      className="btn-3d btn-purple px-4 py-2 rounded-xl font-bold"
+                    >
+                      开始下一轮
+                    </motion.button>
+                  )}
+                </div>
+              )}
+              {gameState === 'GAME_END' && (
+                <span className="text-red-800 font-bold">游戏结束！</span>
+              )}
+            </div>
+            <div className="flex items-center gap-4">
+              {/* 玩家分数 */}
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-blue-800">分数:</span>
+                {users.map(user => (
+                  <span key={user.id} className="bg-white px-2 py-1 rounded-full text-sm">
+                    {user.nickname}: {scores[user.id] || 0}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* 选词模态框 */}
+      <AnimatePresence>
+        {showWordSelection && gameState === 'SELECTING' && isDrawer && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => {}}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">选择你要画的单词</h2>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-orange-500" />
+                  <span className="font-bold text-xl">{timer}s</span>
+                </div>
+              </div>
+
+              <p className="text-gray-600 mb-6">
+                你有 <span className="font-bold text-orange-600">25秒</span> 时间选择一个单词。
+                如果超时，系统会自动随机选择一个。
+              </p>
+
+              <div className="space-y-4 mb-8">
+                {wordOptions.map((option, index) => (
+                  <motion.button
+                    key={index}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleSelectWord(index)}
+                    className="w-full p-5 text-left rounded-2xl border-2 border-blue-200 hover:border-blue-400 bg-gradient-to-r from-blue-50 to-cyan-50 transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-bold text-xl text-gray-800 mb-1">{option.word}</h3>
+                        <p className="text-gray-600 text-sm">提示: {option.hint}</p>
+                      </div>
+                      <div className="text-blue-500 font-bold text-lg">选择</div>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleRefreshWords}
+                  className="flex-1 py-3 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 font-bold rounded-xl"
+                >
+                  换一批
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowWordSelection(false)}
+                  className="flex-1 py-3 bg-gradient-to-r from-red-100 to-red-200 text-red-800 font-bold rounded-xl"
+                >
+                  取消
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 2. 中间游戏区 (画板) - 移动端优先 */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
@@ -763,8 +1055,8 @@ function App() {
                 value={messageInput}
                 onChange={(e) => setMessageInput(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                placeholder={isDrawer ? "画画中..." : "输入答案..."}
-                disabled={isDrawer}
+                placeholder={isDrawer && gameState === 'DRAWING' ? "画画中，不能发送消息..." : "输入消息..."}
+                disabled={isDrawer && gameState === 'DRAWING'}
                 className="input-doodle flex-1 border-2 border-orange-200 focus:border-orange-400"
                 maxLength={50}
               />
@@ -772,10 +1064,10 @@ function App() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleSendMessage}
-                disabled={isDrawer || !messageInput.trim()}
+                disabled={(isDrawer && gameState === 'DRAWING') || !messageInput.trim()}
                 className={cn(
                   "btn-3d px-5 py-3 rounded-xl flex items-center gap-2",
-                  isDrawer || !messageInput.trim()
+                  (isDrawer && gameState === 'DRAWING') || !messageInput.trim()
                     ? "bg-gray-400 cursor-not-allowed"
                     : "btn-warm"
                 )}
@@ -829,6 +1121,48 @@ function App() {
                   </motion.div>
                 ))}
               </div>
+
+              {/* 准备和开始游戏按钮 */}
+              {gameState === 'WAITING' && (
+                <div className="mt-6 space-y-3">
+                  {!isReady ? (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handlePlayerReady(true)}
+                      className="btn-3d btn-green w-full py-3 font-bold rounded-xl"
+                    >
+                      ✅ 准备
+                    </motion.button>
+                  ) : (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handlePlayerReady(false)}
+                      className="btn-3d btn-gray w-full py-3 font-bold rounded-xl"
+                    >
+                      ❌ 取消准备
+                    </motion.button>
+                  )}
+
+                  {isOwner && (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleStartGame}
+                      disabled={readyPlayers.length < users.length || users.length < 2}
+                      className={cn(
+                        "btn-3d w-full py-3 font-bold rounded-xl",
+                        readyPlayers.length === users.length && users.length >= 2
+                          ? "btn-purple"
+                          : "btn-gray opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      🚀 开始游戏 {readyPlayers.length}/{users.length}
+                    </motion.button>
+                  )}
+                </div>
+              )}
             </div>
           </aside>
 
@@ -1050,8 +1384,8 @@ function App() {
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
                     onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                    placeholder={isDrawer ? "画画中..." : "输入答案..."}
-                    disabled={isDrawer}
+                    placeholder={isDrawer && gameState === 'DRAWING' ? "画画中，不能发送消息..." : "输入消息..."}
+                    disabled={isDrawer && gameState === 'DRAWING'}
                     className="input-doodle flex-1 border-2 border-orange-200 focus:border-orange-400"
                     maxLength={50}
                   />
@@ -1059,10 +1393,10 @@ function App() {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handleSendMessage}
-                    disabled={isDrawer || !messageInput.trim()}
+                    disabled={(isDrawer && gameState === 'DRAWING') || !messageInput.trim()}
                     className={cn(
                       "btn-3d px-6 py-3 rounded-xl flex items-center gap-2",
-                      isDrawer || !messageInput.trim()
+                      (isDrawer && gameState === 'DRAWING') || !messageInput.trim()
                         ? "bg-gray-400 cursor-not-allowed"
                         : "btn-warm"
                     )}
@@ -1177,18 +1511,18 @@ function App() {
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
                     onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                    placeholder={isDrawer ? "画画中..." : "输入答案..."}
-                    disabled={isDrawer}
+                    placeholder={isDrawer && gameState === 'DRAWING' ? "画画中，不能发送消息..." : "输入消息..."}
+                    disabled={isDrawer && gameState === 'DRAWING'}
                     className="input-doodle flex-1 border-2 border-orange-200 focus:border-orange-400"
                     maxLength={50}
                   />
                   <motion.button
                     whileTap={{ scale: 0.95 }}
                     onClick={handleSendMessage}
-                    disabled={isDrawer || !messageInput.trim()}
+                    disabled={(isDrawer && gameState === 'DRAWING') || !messageInput.trim()}
                     className={cn(
                       "btn-3d px-5 py-3 rounded-xl flex items-center gap-2",
-                      isDrawer || !messageInput.trim()
+                      (isDrawer && gameState === 'DRAWING') || !messageInput.trim()
                         ? "bg-gray-400 cursor-not-allowed"
                         : "btn-warm"
                     )}
