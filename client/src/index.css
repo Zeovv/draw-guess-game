@@ -9,7 +9,7 @@
 }
 
 body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Fredoka', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
@@ -43,7 +43,101 @@ canvas {
   scrollbar-width: none;
 }
 
-/* 自定义动画 */
+/* ==================== Doodle Background Pattern ==================== */
+.doodle-bg {
+  background-color: #f0f4ff;
+  background-image:
+    radial-gradient(circle at 25% 25%, rgba(236, 72, 153, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(168, 85, 247, 0.05) 0%, transparent 50%),
+    linear-gradient(#e8ecff 1px, transparent 1px),
+    linear-gradient(90deg, #e8ecff 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 20px 20px, 20px 20px;
+}
+
+/* ==================== 3D Button Effect ==================== */
+@layer components {
+  .btn-3d {
+    position: relative;
+    border: none;
+    outline: none;
+    transition: all 0.1s ease;
+  }
+
+  .btn-3d::before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: inherit;
+    border-radius: inherit;
+    filter: brightness(0.8);
+    transform: translateY(0);
+    transition: transform 0.1s ease;
+  }
+
+  .btn-3d:active {
+    transform: translateY(2px);
+  }
+
+  .btn-3d:active::before {
+    transform: translateY(-2px);
+  }
+
+  .btn-pink {
+    background: linear-gradient(135deg, #ec4899 0%, #f472b6 100%);
+    color: white;
+  }
+
+  .btn-purple {
+    background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
+    color: white;
+  }
+
+  .btn-blue {
+    background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+    color: white;
+  }
+
+  .btn-green {
+    background: linear-gradient(135deg, #22c55e 0%, #4ade80 100%);
+    color: white;
+  }
+
+  .btn-orange {
+    background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+    color: white;
+  }
+
+  .btn-red {
+    background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+    color: white;
+  }
+}
+
+/* ==================== Card Effects ==================== */
+@layer components {
+  .card-3d {
+    background: white;
+    border-radius: 1rem;
+    box-shadow:
+      0 4px 6px -1px rgba(0, 0, 0, 0.1),
+      0 2px 4px -1px rgba(0, 0, 0, 0.06),
+      0 0 0 1px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+  }
+
+  .card-3d:hover {
+    box-shadow:
+      0 10px 15px -3px rgba(0, 0, 0, 0.1),
+      0 4px 6px -2px rgba(0, 0, 0, 0.05),
+      0 0 0 1px rgba(0, 0, 0, 0.05);
+    transform: translateY(-2px);
+  }
+}
+
+/* ==================== Custom Animations ==================== */
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -55,11 +149,110 @@ canvas {
   }
 }
 
+@keyframes bounce-soft {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-20px) rotate(5deg);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(168, 85, 247, 0);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
 }
 
-/* 颜色选择器滑动条样式 */
+.animate-bounce-soft {
+  animation: bounce-soft 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out;
+}
+
+/* ==================== Input Styles ==================== */
+@layer components {
+  .input-doodle {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 1rem;
+    border: 3px solid #e8ecff;
+    border-radius: 1rem;
+    background: white;
+    color: #374151;
+    transition: all 0.2s ease;
+    outline: none;
+  }
+
+  .input-doodle::placeholder {
+    color: #9ca3af;
+  }
+
+  .input-doodle:focus {
+    border-color: #a855f7;
+    box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.2);
+  }
+
+  .input-doodle:disabled {
+    background: #f3f4f6;
+    cursor: not-allowed;
+  }
+}
+
+/* ==================== Range Slider Styles ==================== */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -67,17 +260,18 @@ input[type="range"] {
   border-radius: 4px;
   background: #e9d5ff;
   outline: none;
+  cursor: pointer;
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: #a855f7;
+  background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(168, 85, 247, 0.4);
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.4);
   transition: transform 0.2s;
 }
 
@@ -86,38 +280,221 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 input[type="range"]::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: #a855f7;
+  background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
   cursor: pointer;
   border: none;
-  box-shadow: 0 2px 6px rgba(168, 85, 247, 0.4);
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.4);
 }
 
 input[type="range"]::-moz-range-thumb:hover {
   transform: scale(1.1);
 }
 
-/* 移动端输入框优化 */
+/* ==================== Chat Bubble Styles ==================== */
+@layer components {
+  .chat-bubble {
+    max-width: 85%;
+    padding: 0.75rem 1rem;
+    border-radius: 1.25rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .chat-bubble-self {
+    background: linear-gradient(135deg, #ec4899 0%, #f472b6 100%);
+    color: white;
+    border-bottom-right-radius: 0.25rem;
+  }
+
+  .chat-bubble-other {
+    background: white;
+    color: #374151;
+    border: 2px solid #e8ecff;
+    border-bottom-left-radius: 0.25rem;
+  }
+
+  .chat-bubble-correct {
+    background: linear-gradient(135deg, #22c55e 0%, #4ade80 100%);
+    color: white;
+    border-radius: 1.25rem;
+  }
+
+  .chat-bubble-system {
+    background: #f3f4f6;
+    color: #6b7280;
+    padding: 0.375rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+}
+
+/* ==================== Avatar Styles ==================== */
+@layer components {
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 1rem;
+    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.3);
+    transition: all 0.2s ease;
+  }
+
+  .avatar-drawer {
+    background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.3);
+  }
+}
+
+/* ==================== Badge Styles ==================== */
+@layer components {
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+
+  .badge:hover {
+    transform: scale(1.05);
+  }
+
+  .badge-pink {
+    background: rgba(236, 72, 153, 0.1);
+    color: #ec4899;
+  }
+
+  .badge-purple {
+    background: rgba(168, 85, 247, 0.1);
+    color: #a855f7;
+  }
+
+  .badge-blue {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+  }
+
+  .badge-green {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+  }
+
+  .badge-yellow {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+  }
+}
+
+/* ==================== Color Picker Styles ==================== */
+@layer components {
+  .color-dot {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .color-dot:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .color-dot.active {
+    border-color: #374151;
+    transform: scale(1.15);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  }
+}
+
+/* ==================== Canvas Styles ==================== */
+@layer components {
+  .canvas-container {
+    background: white;
+    border: 4px solid white;
+    border-radius: 1rem;
+    box-shadow:
+      0 4px 6px -1px rgba(0, 0, 0, 0.1),
+      0 2px 4px -1px rgba(0, 0, 0, 0.06),
+      inset 0 2px 4px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+  }
+
+  .canvas-paper {
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 24px,
+      #f3f4f6 24px,
+      #f3f4f6 25px
+    );
+  }
+}
+
+/* ==================== Scrollbar Styles ==================== */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* ==================== Mobile Optimization ==================== */
 input, button {
   -webkit-tap-highlight-color: transparent;
   outline: none;
 }
 
-/* 防止移动端长按选中文本 */
 * {
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
 }
 
-/* 移动端滚动容器优化 */
 .flex-1.overflow-y-auto {
   -webkit-overflow-scrolling: touch;
 }
 
-/* 移动端防止页面缩放和滑动 */
 #root {
   overscroll-behavior: none;
   touch-action: none;
+}
+
+/* ==================== Responsive Helpers ==================== */
+@media (max-width: 768px) {
+  .mobile-hidden {
+    display: none !important;
+  }
+
+  .mobile-full {
+    width: 100% !important;
+  }
+
+  .mobile-p-2 {
+    padding: 0.5rem !important;
+  }
 }
