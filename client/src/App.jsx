@@ -89,6 +89,7 @@ function App() {
   const canvasRef = useRef(null);
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef({ x: 0, y: 0 });
+  const listenersRegistered = useRef(false);
 
   // ========== 画笔设置 ==========
   const [brushColor, setBrushColor] = useState('#000000');
@@ -265,6 +266,11 @@ function App() {
 
   // ========== Socket 事件监听 ==========
   useEffect(() => {
+    // 防止重复注册监听器
+    if (listenersRegistered.current) {
+      return;
+    }
+
     // 角色分配
     socket.on('role_assigned', ({ isDrawer: assigned, isOwner: owner }) => {
       setIsDrawer(assigned);
@@ -402,6 +408,8 @@ function App() {
       alert(`错误: ${message}`);
     });
 
+    listenersRegistered.current = true;
+
     return () => {
       socket.off('role_assigned');
       socket.off('receive_message');
@@ -418,6 +426,8 @@ function App() {
       socket.off('round_end');
       socket.off('game_end');
       socket.off('error');
+
+      listenersRegistered.current = false;
     };
   }, [roomId]);
 

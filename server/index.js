@@ -68,30 +68,45 @@ function clearRoomTimer(room) {
     room.timerInterval = null;
   }
   room.timer = null;
+  room.roundEndTime = 0;
 }
 
 // 工具函数：开始房间倒计时
 function startRoomTimer(io, roomId, room, duration, onTimeout) {
   clearRoomTimer(room);
+
+  const startTime = Date.now();
+  room.roundEndTime = startTime + duration * 1000;
   room.timer = duration;
-  room.roundEndTime = Date.now() + duration * 1000;
+
+  // 立即广播初始时间
+  io.to(roomId).emit('timer_update', { timer: room.timer });
 
   room.timerInterval = setInterval(() => {
-    room.timer--;
+    // 检查定时器是否仍然有效（防止清理后仍然执行）
+    if (!room.timerInterval) {
+      return;
+    }
 
-    // 广播计时器更新
-    io.to(roomId).emit('timer_update', { timer: room.timer });
+    const now = Date.now();
+    const remaining = Math.max(0, Math.ceil((room.roundEndTime - now) / 1000));
 
-    if (room.timer <= 0) {
+    // 确保 room.timer 是数字
+    if (room.timer !== null && remaining !== room.timer) {
+      room.timer = remaining;
+      io.to(roomId).emit('timer_update', { timer: room.timer });
+    }
+
+    if (remaining <= 0) {
       clearRoomTimer(room);
       if (onTimeout) onTimeout();
     }
-  }, 1000);
+  }, 500); // 更频繁的检查以提高精度
 }
 
 // 工具函数：获取下一个画手
 function getNextDrawer(room) {
-  if (!room.users || room.users.length === 0) return 0;
+  if (!room.users || room.users.length === 0) return -1;
   return (room.currentDrawerIndex + 1) % room.users.length;
 }
 
@@ -130,12 +145,18 @@ function getWinner(room) {
 
 // 工具函数：结束当前回合
 function endRound(io, roomId, room, reason = 'timeout') {
+  // 防止重复调用（回合结束或游戏结束状态）
+  if (room.gameState === GAME_STATE.ROUND_END || room.gameState === GAME_STATE.GAME_END) {
+    return;
+  }
   clearRoomTimer(room);
 
   // 重置用户猜对状态
-  room.users.forEach(user => {
-    user.guessedCorrectly = false;
-  });
+  if (room.users) {
+    room.users.forEach(user => {
+      user.guessedCorrectly = false;
+    });
+  }
 
   // 广播回合结束
   io.to(roomId).emit('round_end', {
@@ -154,8 +175,22 @@ function endRound(io, roomId, room, reason = 'timeout') {
 
 // 工具函数：开始新回合
 function startNewRound(io, roomId, room) {
+  // 确保清理之前的定时器
+  clearRoomTimer(room);
+
+  // 检查用户是否存在
+  if (!room.users || room.users.length === 0) {
+    console.error(`房间 ${roomId} 没有用户，无法开始新回合`);
+    return;
+  }
+
   // 切换到下一个画手
   room.currentDrawerIndex = getNextDrawer(room);
+
+  // 确保画手索引有效
+  if (room.currentDrawerIndex < 0 || room.currentDrawerIndex >= room.users.length) {
+    room.currentDrawerIndex = 0;
+  }
 
   // 更新用户画手状态
   room.users.forEach((user, index) => {
@@ -186,7 +221,11 @@ function startNewRound(io, roomId, room) {
     if (room.gameState === GAME_STATE.SELECTING && room.wordOptions.length > 0) {
       const randomIndex = Math.floor(Math.random() * room.wordOptions.length);
       const selectedWord = room.wordOptions[randomIndex];
-      selectWord(io, roomId, room, drawer.id, selectedWord);
+      // 使用当前画手，而不是闭包中的drawer变量
+      const currentDrawer = room.users[room.currentDrawerIndex];
+      if (currentDrawer) {
+        selectWord(io, roomId, room, currentDrawer.id, selectedWord);
+      }
     }
   });
 
@@ -327,6 +366,10 @@ io.on('connection', (socket) => {
 
   // 画笔路径
   socket.on('draw_line', (data) => {
+    // 参数检查
+    if (!data || !data.roomId) {
+      return;
+    }
     const { roomId, startX, startY, endX, endY, color, lineWidth } = data;
     socket.to(roomId).emit('draw_line', {
       startX,
@@ -339,13 +382,21 @@ io.on('connection', (socket) => {
   });
 
   // 发送消息
-  socket.on('send_message', ({ roomId, message, nickname }) => {
+  socket.on('send_message', (data) => {
+    // 参数检查
+    if (!data || !data.roomId || !data.message || !data.nickname) {
+      return;
+    }
+    const { roomId, message, nickname } = data;
+
     const room = rooms[roomId];
     if (!room) return;
 
     // 检查是否是猜词阶段并且消息匹配当前单词
     if (room.gameState === GAME_STATE.DRAWING &&
         room.currentWord &&
+        room.currentWord.word &&
+        typeof room.currentWord.word === 'string' &&
         message.trim().toLowerCase() === room.currentWord.word.toLowerCase()) {
 
       // 查找发送者用户
@@ -409,12 +460,17 @@ io.on('connection', (socket) => {
 
       // 检查是否所有猜题者都猜对了
       const drawerIndex = room.currentDrawerIndex;
-      const guessers = room.users.filter((_, index) => index !== drawerIndex);
-      const allGuessersCorrect = guessers.every(g => g.guessedCorrectly);
-
-      if (allGuessersCorrect) {
-        // 所有猜题者都猜对了，提前结束本轮
-        endRound(io, roomId, room, 'all_guessed');
+      // 确保画手索引有效
+      if (drawerIndex >= 0 && drawerIndex < room.users.length) {
+        const guessers = room.users.filter((_, index) => index !== drawerIndex);
+        // 只有在有猜题者的情况下才检查
+        if (guessers.length > 0) {
+          const allGuessersCorrect = guessers.every(g => g.guessedCorrectly);
+          if (allGuessersCorrect) {
+            // 所有猜题者都猜对了，提前结束本轮
+            endRound(io, roomId, room, 'all_guessed');
+          }
+        }
       }
 
       return;
@@ -429,12 +485,22 @@ io.on('connection', (socket) => {
   });
 
   // 清空画布
-  socket.on('clear_canvas', ({ roomId }) => {
+  socket.on('clear_canvas', (data) => {
+    // 参数检查
+    if (!data || !data.roomId) {
+      return;
+    }
+    const { roomId } = data;
     io.to(roomId).emit('clear_canvas');
   });
 
   // 玩家准备/取消准备
-  socket.on('player_ready', ({ roomId, isReady }) => {
+  socket.on('player_ready', (data) => {
+    // 参数检查
+    if (!data || !data.roomId || typeof data.isReady !== 'boolean') {
+      return;
+    }
+    const { roomId, isReady } = data;
     const room = rooms[roomId];
     if (!room) return;
 
@@ -465,7 +531,12 @@ io.on('connection', (socket) => {
   });
 
   // 房主开始游戏
-  socket.on('start_game', ({ roomId }) => {
+  socket.on('start_game', (data) => {
+    // 参数检查
+    if (!data || !data.roomId) {
+      return;
+    }
+    const { roomId } = data;
     const room = rooms[roomId];
     if (!room) return;
 
@@ -500,7 +571,9 @@ io.on('connection', (socket) => {
     });
 
     // 设置第一个画手
-    room.users[0].isDrawer = true;
+    if (room.users.length > 0) {
+      room.users[0].isDrawer = true;
+    }
 
     // 开始第一轮
     startNewRound(io, roomId, room);
@@ -509,7 +582,12 @@ io.on('connection', (socket) => {
   });
 
   // 画手选择单词
-  socket.on('select_word', ({ roomId, wordIndex }) => {
+  socket.on('select_word', (data) => {
+    // 参数检查
+    if (!data || !data.roomId || typeof data.wordIndex !== 'number') {
+      return;
+    }
+    const { roomId, wordIndex } = data;
     const room = rooms[roomId];
     if (!room) return;
 
@@ -537,7 +615,12 @@ io.on('connection', (socket) => {
   });
 
   // 画手刷新单词选项
-  socket.on('refresh_words', ({ roomId }) => {
+  socket.on('refresh_words', (data) => {
+    // 参数检查
+    if (!data || !data.roomId) {
+      return;
+    }
+    const { roomId } = data;
     const room = rooms[roomId];
     if (!room) return;
 
@@ -564,7 +647,12 @@ io.on('connection', (socket) => {
   });
 
   // 下一回合
-  socket.on('next_round', ({ roomId }) => {
+  socket.on('next_round', (data) => {
+    // 参数检查
+    if (!data || !data.roomId) {
+      return;
+    }
+    const { roomId } = data;
     const room = rooms[roomId];
     if (!room) return;
 
@@ -610,24 +698,34 @@ io.on('connection', (socket) => {
         const user = room.users[userIndex];
         room.users.splice(userIndex, 1);
 
+        // 检查断开连接的用户是否是当前画手（使用删除前的索引）
+        const wasDrawer = userIndex === room.currentDrawerIndex;
+
         // 调整当前画手索引（因为删除一个用户后索引可能改变）
         if (userIndex < room.currentDrawerIndex) {
           // 删除的用户在当前画手之前，画手索引减1
           room.currentDrawerIndex--;
         }
 
-        // 如果断开连接的用户是当前画手
-        if (userIndex === room.currentDrawerIndex) {
+        // 如果断开连接的用户是当前画手（调整索引后检查）
+        if (wasDrawer) {
+          // 如果游戏正在进行中（选词或绘画阶段），结束当前回合
+          if (room.gameState === GAME_STATE.SELECTING || room.gameState === GAME_STATE.DRAWING) {
+            endRound(io, roomId, room, 'drawer_disconnected');
+          }
+
           // 如果还有剩余用户，选择新的画手（选下一个用户，如果超出范围则选第一个）
           if (room.users.length > 0) {
-            // 如果当前画手索引超出范围，重置为0
+            // 如果当前画手索引超出范围（因为画手被移除），重置为0
             if (room.currentDrawerIndex >= room.users.length) {
               room.currentDrawerIndex = 0;
             }
             // 设置新画手
-            room.users[room.currentDrawerIndex].isDrawer = true;
-            // 通知新画手
-            io.to(room.users[room.currentDrawerIndex].id).emit('role_assigned', { isDrawer: true });
+            if (room.currentDrawerIndex >= 0 && room.currentDrawerIndex < room.users.length) {
+              room.users[room.currentDrawerIndex].isDrawer = true;
+              // 通知新画手
+              io.to(room.users[room.currentDrawerIndex].id).emit('role_assigned', { isDrawer: true });
+            }
           }
         }
 
@@ -639,6 +737,7 @@ io.on('connection', (socket) => {
 
         // 如果房间为空，删除房间
         if (room.users.length === 0) {
+          clearRoomTimer(room); // 清理定时器
           delete rooms[roomId];
         } else {
           io.to(roomId).emit('user_left', {
