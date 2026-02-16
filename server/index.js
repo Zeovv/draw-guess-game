@@ -6,6 +6,15 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 
+// 健康检查端点
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    service: 'draw-guess-server'
+  });
+});
+
 const httpServer = createServer(app);
 
 // 允许所有来源（生产环境可限制特定域名）
