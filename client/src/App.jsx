@@ -29,6 +29,13 @@ function getAvatarColor(nickname) {
   return colors[index];
 }
 
+// 生成 DiceBear 头像 URL
+function getAvatarUrl(nickname) {
+  // 使用 adventurer 风格，生成可爱头像
+  const seed = encodeURIComponent(nickname);
+  return `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}&backgroundColor=ffd8b1,ffdfbf,ffebcc,fff5e6&hairColor=0a0a0a,262626,57534e,78716c&hair=full,short,mohawk&eyes=happy,closed,wink&mouth=laughing,smile,smirk`;
+}
+
 // 画笔颜色配置
 const brushColors = [
   { color: '#000000', name: '黑色' },
@@ -418,69 +425,78 @@ function App() {
 
   // ========== 游戏页 ==========
   return (
-    <div className="doodle-bg h-screen flex flex-col">
-      {/* 顶部栏 */}
-      <header className="bg-white/80 backdrop-blur-sm border-b-2 border-purple-100 px-4 py-3 shadow-sm">
+    <div className="h-screen w-full bg-[#FFF9E6] flex flex-col overflow-hidden font-['Fredoka']">
+      {/* 1. 顶部栏 - 微信小游戏风格 */}
+      <header className="bg-white/90 backdrop-blur-sm border-b-2 border-orange-100 px-4 py-3 shadow-sm">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
             <motion.div
               whileHover={{ rotate: 360 }}
               transition={{ duration: 0.5 }}
             >
-              <Palette className="w-8 h-8 text-purple-500" />
+              <Palette className="w-8 h-8 text-orange-500" />
             </motion.div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent hidden md:block">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-orange-500 to-yellow-500 bg-clip-text text-transparent hidden md:block">
               你画我猜
             </h1>
 
-            {/* 房间号 Badge */}
+            {/* 房间号胶囊标签 */}
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={handleCopyRoomId}
-              className="badge badge-purple flex items-center gap-1"
+              className="badge badge-warm-solid flex items-center gap-1 px-4 py-2 rounded-full"
             >
               <Copy className="w-3 h-3" />
-              {roomId}
-              {copied && <span className="text-xs ml-1">已复制!</span>}
+              <span className="font-bold">房间: {roomId}</span>
+              {copied && <span className="text-xs ml-1 animate-bounce-pop">✓</span>}
             </motion.button>
 
-            {/* 角色 Badge */}
+            {/* 角色标签 */}
             <motion.span
               initial={{ scale: 0.8 }}
               animate={{ scale: 1 }}
               className={cn(
-                "badge flex items-center gap-1",
-                isDrawer ? "badge-yellow" : "badge-blue"
+                "badge flex items-center gap-1 px-3 py-1.5 rounded-full font-semibold",
+                isDrawer ? "bg-gradient-to-r from-yellow-400 to-orange-400 text-white" : "bg-gradient-to-r from-blue-400 to-cyan-400 text-white"
               )}
             >
               {isDrawer ? (
                 <>
                   <Pencil className="w-3 h-3" />
-                  画画
+                  画画中
                 </>
               ) : (
                 <>
                   <Smile className="w-3 h-3" />
-                  猜题
+                  猜题中
                 </>
               )}
             </motion.span>
           </div>
 
-          {/* 玩家数量 */}
-          <div className="flex items-center gap-2">
+          {/* 玩家数量和时间 */}
+          <div className="flex items-center gap-3">
+            {/* 剩余时间胶囊 - 示例，需要实际时间状态 */}
             <motion.div
-              className="badge badge-blue flex items-center gap-1"
+              className="badge badge-warm flex items-center gap-1 px-3 py-1.5 rounded-full"
+              whileHover={{ scale: 1.05 }}
+            >
+              <Clock className="w-4 h-4" />
+              <span className="font-bold">60s</span>
+            </motion.div>
+
+            <motion.div
+              className="badge badge-warm flex items-center gap-1 px-3 py-1.5 rounded-full"
               whileHover={{ scale: 1.05 }}
             >
               <Users className="w-4 h-4" />
-              {users.length}
+              <span className="font-bold">{users.length}人</span>
             </motion.div>
 
-            {/* 移动端聊天按钮 */}
+            {/* 移动端聊天按钮 - 隐藏，因为聊天区常驻 */}
             <motion.button
-              className="md:hidden badge badge-pink flex items-center gap-1"
+              className="md:hidden badge badge-warm-solid flex items-center gap-1 px-3 py-1.5 rounded-full"
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowMobileChat(true)}
             >
@@ -495,58 +511,16 @@ function App() {
         </div>
       </header>
 
-      {/* 主内容区 */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden p-2 md:p-4 gap-3 max-w-7xl mx-auto w-full">
-        {/* PC端：左侧玩家列表 */}
-        <aside className="hidden md:flex flex-col w-64 card-3d p-4">
-          <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            玩家列表
-          </h3>
-          <div className="space-y-2 flex-1 overflow-y-auto custom-scrollbar">
-            {users.map((user, index) => (
-              <motion.div
-                key={user.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className={cn(
-                  "flex items-center gap-3 p-2 rounded-xl",
-                  user.isDrawer ? "bg-yellow-50" : "bg-gray-50"
-                )}
-              >
-                <div
-                  className={cn(
-                    "avatar",
-                    user.isDrawer && "avatar-drawer"
-                  )}
-                >
-                  {user.nickname.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-sm text-gray-800">
-                    {user.nickname}
-                  </p>
-                  {user.isDrawer && (
-                    <p className="text-xs text-yellow-600">正在画画...</p>
-                  )}
-                </div>
-                {user.isDrawer && (
-                  <Pencil className="w-4 h-4 text-yellow-500" />
-                )}
-              </motion.div>
-            ))}
-          </div>
-        </aside>
-
-        {/* 中间：画板区域 */}
-        <main className="flex-1 flex flex-col min-h-0">
-          {/* 工具栏 */}
+      {/* 2. 中间游戏区 (画板) - 移动端优先 */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+        {/* 移动端：垂直布局 */}
+        <div className="flex-1 flex flex-col md:hidden">
+          {/* 工具栏（移动端） */}
           {isDrawer && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="card-3d p-3 mb-3 flex flex-wrap items-center gap-3"
+              className="bg-white/80 backdrop-blur-sm mx-4 mt-3 p-3 rounded-2xl shadow-lg flex items-center gap-2 overflow-x-auto"
             >
               {/* 颜色选择器 */}
               <div className="relative">
@@ -566,27 +540,33 @@ function App() {
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.9 }}
-                      className="absolute top-12 left-0 card-3d p-3 z-50 min-w-[280px]"
+                      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center md:hidden"
+                      onClick={() => setShowColorPicker(false)}
                     >
-                      <div className="grid grid-cols-4 gap-2">
-                        {brushColors.map(({ color, name }) => (
-                          <motion.button
-                            key={color}
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => {
-                              setBrushColor(color);
-                              setShowColorPicker(false);
-                            }}
-                            className={cn(
-                              "color-dot",
-                              brushColor === color && "active"
-                            )}
-                            style={{ backgroundColor: color }}
-                            title={name}
-                          />
-                        ))}
-                      </div>
+                      <motion.div
+                        className="bg-white rounded-3xl p-4 mx-4 max-w-sm w-full"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="grid grid-cols-4 gap-3">
+                          {brushColors.map(({ color, name }) => (
+                            <motion.button
+                              key={color}
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => {
+                                setBrushColor(color);
+                                setShowColorPicker(false);
+                              }}
+                              className={cn(
+                                "color-dot w-12 h-12",
+                                brushColor === color && "active border-4"
+                              )}
+                              style={{ backgroundColor: color }}
+                              title={name}
+                            />
+                          ))}
+                        </div>
+                      </motion.div>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -598,7 +578,7 @@ function App() {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setShowBrushSizePicker(!showBrushSizePicker)}
-                  className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-400 to-purple-500 flex items-center justify-center shadow-md"
+                  className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-400 to-yellow-400 flex items-center justify-center shadow-md"
                 >
                   <Pencil className="w-5 h-5 text-white drop-shadow-md" />
                 </motion.button>
@@ -609,35 +589,41 @@ function App() {
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.9 }}
-                      className="absolute top-12 left-0 card-3d p-3 z-50"
+                      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center md:hidden"
+                      onClick={() => setShowBrushSizePicker(false)}
                     >
-                      <div className="space-y-2">
-                        {brushSizes.map((size) => (
-                          <motion.button
-                            key={size}
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => {
-                              setBrushSize(size);
-                              setShowBrushSizePicker(false);
-                            }}
-                            className={cn(
-                              "w-full py-2 px-3 rounded-lg text-sm font-semibold text-left transition-all",
-                              brushSize === size
-                                ? "bg-purple-100 text-purple-700"
-                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                            )}
-                          >
-                            <div className="flex items-center gap-2">
-                              <div
-                                className="rounded-full bg-purple-500"
-                                style={{ width: `${size}px`, height: `${size}px` }}
-                              />
-                              <span>{size}px</span>
-                            </div>
-                          </motion.button>
-                        ))}
-                      </div>
+                      <motion.div
+                        className="bg-white rounded-3xl p-4 mx-4 max-w-sm w-full"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="space-y-3">
+                          {brushSizes.map((size) => (
+                            <motion.button
+                              key={size}
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => {
+                                setBrushSize(size);
+                                setShowBrushSizePicker(false);
+                              }}
+                              className={cn(
+                                "w-full py-3 px-4 rounded-xl text-sm font-semibold text-left transition-all",
+                                brushSize === size
+                                  ? "bg-orange-100 text-orange-700"
+                                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                              )}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="rounded-full bg-orange-500"
+                                  style={{ width: `${size}px`, height: `${size}px` }}
+                                />
+                                <span>{size}px</span>
+                              </div>
+                            </motion.button>
+                          ))}
+                        </div>
+                      </motion.div>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -656,98 +642,121 @@ function App() {
             </motion.div>
           )}
 
-          {/* Canvas */}
-          <div className="flex-1 canvas-container relative">
-            {isDrawer && (
-              <div className="absolute bottom-4 left-4 z-10 badge badge-yellow">
-                <Pencil className="w-3 h-3" />
-                你的回合
-              </div>
-            )}
-            <canvas
-              ref={canvasRef}
-              className="w-full h-full cursor-crosshair"
-              onMouseDown={handleStart}
-              onMouseMove={handleMove}
-              onMouseUp={handleEnd}
-              onMouseLeave={handleEnd}
-              onTouchStart={handleStart}
-              onTouchMove={handleMove}
-              onTouchEnd={handleEnd}
-            />
-          </div>
-        </main>
-
-        {/* PC端：右侧聊天区域 */}
-        <aside className="hidden md:flex flex-col w-80 card-3d overflow-hidden">
-          {/* 聊天标题 */}
-          <div className="px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500">
-            <h3 className="font-bold text-white text-lg flex items-center gap-2">
-              <Send className="w-5 h-5" />
-              聊天室
-            </h3>
+          {/* 画板容器 */}
+          <div className="flex-1 flex flex-col items-center justify-center p-4">
+            <div className="relative w-full max-w-2xl">
+              <canvas
+                ref={canvasRef}
+                className="bg-white rounded-3xl shadow-xl touch-none w-full h-full min-h-[400px]"
+                onMouseDown={handleStart}
+                onMouseMove={handleMove}
+                onMouseUp={handleEnd}
+                onMouseLeave={handleEnd}
+                onTouchStart={handleStart}
+                onTouchMove={handleMove}
+                onTouchEnd={handleEnd}
+              />
+              {isDrawer && (
+                <div className="absolute top-4 left-4 z-10 badge badge-warm-solid px-3 py-1.5">
+                  <Pencil className="w-3 h-3" />
+                  你的回合
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* 聊天消息列表 */}
-          <div
-            id="chat-container"
-            className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-gradient-to-b from-white to-purple-50"
-          >
-            {messages.length === 0 && (
-              <div className="text-center py-8">
-                <Smile className="w-16 h-16 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-400 text-sm font-medium">还没有消息哦~</p>
-              </div>
-            )}
-            <AnimatePresence>
-              {messages.map((msg, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ delay: index * 0.05 }}
-                >
-                  {msg.isSystem ? (
-                    <div className="flex items-center justify-center">
-                      <span className="chat-bubble-system">{msg.message}</span>
-                    </div>
-                  ) : (
-                    <div
-                      className={cn(
-                        "flex",
-                        msg.nickname === nickname ? "justify-end" : "justify-start"
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          "flex flex-col max-w-[85%]",
-                          msg.nickname === nickname ? "items-end" : "items-start"
-                        )}
-                      >
-                        <span className="text-xs font-semibold text-gray-500 mb-1 px-1">
-                          {msg.nickname === nickname ? "你" : msg.nickname}
-                        </span>
-                        <div
-                          className={cn(
-                            "chat-bubble",
-                            msg.nickname === nickname
-                              ? "chat-bubble-self"
-                              : "chat-bubble-other"
-                          )}
-                        >
-                          <p className="text-sm font-medium break-words">{msg.message}</p>
-                        </div>
-                      </div>
+          {/* 3. 玩家头像栏 (横向滚动) */}
+          <div className="h-24 flex items-center px-4 overflow-x-auto space-x-4 py-2">
+            {users.map((user) => (
+              <motion.div
+                key={user.id}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex flex-col items-center space-y-2"
+              >
+                <div className="relative">
+                  <img
+                    src={getAvatarUrl(user.nickname)}
+                    alt={user.nickname}
+                    className={cn(
+                      "w-14 h-14 rounded-full object-cover shadow-lg border-4",
+                      user.isDrawer ? "border-yellow-400" : "border-blue-400"
+                    )}
+                  />
+                  {user.isDrawer && (
+                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center border-2 border-white">
+                      <Pencil className="w-3 h-3 text-white" />
                     </div>
                   )}
-                </motion.div>
-              ))}
-            </AnimatePresence>
+                </div>
+                <span className="text-xs font-semibold text-gray-700 max-w-[4rem] truncate">
+                  {user.nickname}
+                </span>
+              </motion.div>
+            ))}
           </div>
 
-          {/* 输入框 */}
-          <div className="p-4 border-t-2 border-purple-100 bg-white">
+          {/* 4. 聊天消息区 (可滚动) */}
+          <div className="flex-1 overflow-y-auto p-4 bg-white/50 rounded-t-3xl border-t border-orange-100">
+            <div className="space-y-3">
+              {messages.length === 0 && (
+                <div className="text-center py-8">
+                  <Smile className="w-16 h-16 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-400 text-sm font-medium">还没有消息哦~</p>
+                </div>
+              )}
+              <AnimatePresence>
+                {messages.map((msg, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    {msg.isSystem ? (
+                      <div className="flex items-center justify-center">
+                        <span className="chat-bubble-system bg-orange-100 text-orange-700">
+                          {msg.message}
+                        </span>
+                      </div>
+                    ) : (
+                      <div
+                        className={cn(
+                          "flex",
+                          msg.nickname === nickname ? "justify-end" : "justify-start"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "flex flex-col max-w-[85%]",
+                            msg.nickname === nickname ? "items-end" : "items-start"
+                          )}
+                        >
+                          <span className="text-xs font-semibold text-gray-500 mb-1 px-1">
+                            {msg.nickname === nickname ? "你" : msg.nickname}
+                          </span>
+                          <div
+                            className={cn(
+                              "chat-bubble px-4 py-3 rounded-2xl",
+                              msg.nickname === nickname
+                                ? "bg-gradient-to-r from-orange-500 to-yellow-500 text-white"
+                                : "bg-white text-gray-800 border-2 border-orange-100"
+                            )}
+                          >
+                            <p className="text-sm font-medium break-words">{msg.message}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          </div>
+
+          {/* 5. 底部输入框 */}
+          <div className="bg-white p-4 pb-safe border-t border-orange-100">
             <div className="flex gap-2">
               <input
                 type="text"
@@ -756,7 +765,7 @@ function App() {
                 onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
                 placeholder={isDrawer ? "画画中..." : "输入答案..."}
                 disabled={isDrawer}
-                className="input-doodle flex-1"
+                className="input-doodle flex-1 border-2 border-orange-200 focus:border-orange-400"
                 maxLength={50}
               />
               <motion.button
@@ -768,17 +777,306 @@ function App() {
                   "btn-3d px-5 py-3 rounded-xl flex items-center gap-2",
                   isDrawer || !messageInput.trim()
                     ? "bg-gray-400 cursor-not-allowed"
-                    : "btn-purple"
+                    : "btn-warm"
                 )}
               >
                 <Send className="w-4 h-4" />
               </motion.button>
             </div>
           </div>
-        </aside>
+        </div>
+
+        {/* 桌面端：三栏布局 */}
+        <div className="hidden md:flex flex-1 p-4 gap-4 max-w-7xl mx-auto w-full">
+          {/* 左侧玩家列表 */}
+          <aside className="w-64 flex flex-col">
+            <div className="card-3d p-4 flex-1">
+              <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2 text-lg">
+                <Users className="w-5 h-5" />
+                玩家列表
+              </h3>
+              <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar">
+                {users.map((user, index) => (
+                  <motion.div
+                    key={user.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-xl transition-all",
+                      user.isDrawer ? "bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-200" : "bg-gray-50 hover:bg-gray-100"
+                    )}
+                  >
+                    <img
+                      src={getAvatarUrl(user.nickname)}
+                      alt={user.nickname}
+                      className={cn(
+                        "w-10 h-10 rounded-full object-cover border-2",
+                        user.isDrawer ? "border-yellow-400" : "border-blue-400"
+                      )}
+                    />
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm text-gray-800">
+                        {user.nickname}
+                      </p>
+                      {user.isDrawer && (
+                        <p className="text-xs text-yellow-600 font-medium">正在画画...</p>
+                      )}
+                    </div>
+                    {user.isDrawer && (
+                      <Pencil className="w-4 h-4 text-yellow-500" />
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          {/* 中间画板区域 */}
+          <main className="flex-1 flex flex-col min-h-0">
+            {/* 工具栏 */}
+            {isDrawer && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="card-3d p-4 mb-4 flex flex-wrap items-center gap-4"
+              >
+                {/* 颜色选择器 */}
+                <div className="relative">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowColorPicker(!showColorPicker)}
+                    className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
+                    style={{ backgroundColor: brushColor }}
+                  >
+                    <Palette className="w-6 h-6 text-white drop-shadow-md" />
+                  </motion.button>
+
+                  <AnimatePresence>
+                    {showColorPicker && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="absolute top-14 left-0 card-3d p-4 z-50 min-w-[320px]"
+                      >
+                        <div className="grid grid-cols-6 gap-3">
+                          {brushColors.map(({ color, name }) => (
+                            <motion.button
+                              key={color}
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => {
+                                setBrushColor(color);
+                                setShowColorPicker(false);
+                              }}
+                              className={cn(
+                                "color-dot w-12 h-12",
+                                brushColor === color && "active border-4"
+                              )}
+                              style={{ backgroundColor: color }}
+                              title={name}
+                            />
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* 画笔粗细 */}
+                <div className="relative">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowBrushSizePicker(!showBrushSizePicker)}
+                    className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-400 to-yellow-400 flex items-center justify-center shadow-lg"
+                  >
+                    <Pencil className="w-6 h-6 text-white drop-shadow-md" />
+                  </motion.button>
+
+                  <AnimatePresence>
+                    {showBrushSizePicker && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="absolute top-14 left-0 card-3d p-4 z-50"
+                      >
+                        <div className="space-y-3">
+                          {brushSizes.map((size) => (
+                            <motion.button
+                              key={size}
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => {
+                                setBrushSize(size);
+                                setShowBrushSizePicker(false);
+                              }}
+                              className={cn(
+                                "w-full py-3 px-4 rounded-xl text-sm font-semibold text-left transition-all",
+                                brushSize === size
+                                  ? "bg-orange-100 text-orange-700"
+                                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                              )}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="rounded-full bg-orange-500"
+                                  style={{ width: `${size}px`, height: `${size}px` }}
+                                />
+                                <span>{size}px</span>
+                              </div>
+                            </motion.button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* 清空画布 */}
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleClearCanvas}
+                  className="ml-auto btn-3d btn-red px-5 py-3 rounded-xl flex items-center gap-2 font-semibold"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  清空画布
+                </motion.button>
+              </motion.div>
+            )}
+
+            {/* Canvas */}
+            <div className="flex-1 canvas-container relative">
+              {isDrawer && (
+                <div className="absolute top-4 left-4 z-10 badge badge-warm-solid px-4 py-2">
+                  <Pencil className="w-4 h-4" />
+                  你的回合 - 请开始画画
+                </div>
+              )}
+              <canvas
+                ref={canvasRef}
+                className="w-full h-full cursor-crosshair"
+                onMouseDown={handleStart}
+                onMouseMove={handleMove}
+                onMouseUp={handleEnd}
+                onMouseLeave={handleEnd}
+                onTouchStart={handleStart}
+                onTouchMove={handleMove}
+                onTouchEnd={handleEnd}
+              />
+            </div>
+          </main>
+
+          {/* 右侧聊天区域 */}
+          <aside className="w-80 flex flex-col">
+            <div className="card-3d flex-1 flex flex-col overflow-hidden">
+              {/* 聊天标题 */}
+              <div className="px-6 py-4 bg-gradient-to-r from-orange-500 to-yellow-500">
+                <h3 className="font-bold text-white text-lg flex items-center gap-3">
+                  <Send className="w-6 h-6" />
+                  聊天室
+                </h3>
+              </div>
+
+              {/* 聊天消息列表 */}
+              <div
+                id="chat-container"
+                className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-gradient-to-b from-white to-orange-50"
+              >
+                {messages.length === 0 && (
+                  <div className="text-center py-12">
+                    <Smile className="w-20 h-20 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-400 text-sm font-medium">还没有消息哦~</p>
+                  </div>
+                )}
+                <AnimatePresence>
+                  {messages.map((msg, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      {msg.isSystem ? (
+                        <div className="flex items-center justify-center">
+                          <span className="chat-bubble-system bg-orange-100 text-orange-700 px-4 py-2">
+                            {msg.message}
+                          </span>
+                        </div>
+                      ) : (
+                        <div
+                          className={cn(
+                            "flex",
+                            msg.nickname === nickname ? "justify-end" : "justify-start"
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "flex flex-col max-w-[85%]",
+                              msg.nickname === nickname ? "items-end" : "items-start"
+                            )}
+                          >
+                            <span className="text-xs font-semibold text-gray-500 mb-1 px-2">
+                              {msg.nickname === nickname ? "你" : msg.nickname}
+                            </span>
+                            <div
+                              className={cn(
+                                "chat-bubble px-4 py-3 rounded-2xl",
+                                msg.nickname === nickname
+                                  ? "bg-gradient-to-r from-orange-500 to-yellow-500 text-white"
+                                  : "bg-white text-gray-800 border-2 border-orange-100"
+                              )}
+                            >
+                              <p className="text-sm font-medium break-words">{msg.message}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+
+              {/* 输入框 */}
+              <div className="p-4 border-t-2 border-orange-100 bg-white">
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                    placeholder={isDrawer ? "画画中..." : "输入答案..."}
+                    disabled={isDrawer}
+                    className="input-doodle flex-1 border-2 border-orange-200 focus:border-orange-400"
+                    maxLength={50}
+                  />
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleSendMessage}
+                    disabled={isDrawer || !messageInput.trim()}
+                    className={cn(
+                      "btn-3d px-6 py-3 rounded-xl flex items-center gap-2",
+                      isDrawer || !messageInput.trim()
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "btn-warm"
+                    )}
+                  >
+                    <Send className="w-5 h-5" />
+                  </motion.button>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
       </div>
 
-      {/* 移动端聊天抽屉 */}
+      {/* 移动端聊天抽屉 (备用) */}
       <AnimatePresence>
         {showMobileChat && (
           <>
@@ -797,17 +1095,17 @@ function App() {
               className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl z-50 md:hidden max-h-[70vh] flex flex-col"
             >
               {/* 抽屉头部 */}
-              <div className="px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-t-3xl flex items-center justify-between">
-                <h3 className="font-bold text-white text-lg flex items-center gap-2">
-                  <Send className="w-5 h-5" />
+              <div className="px-6 py-4 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-t-3xl flex items-center justify-between">
+                <h3 className="font-bold text-white text-lg flex items-center gap-3">
+                  <Send className="w-6 h-6" />
                   聊天室
                 </h3>
                 <motion.button
                   whileTap={{ scale: 0.9 }}
                   onClick={() => setShowMobileChat(false)}
-                  className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center"
+                  className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"
                 >
-                  <X className="w-5 h-5 text-white" />
+                  <X className="w-6 h-6 text-white" />
                 </motion.button>
               </div>
 
@@ -833,7 +1131,9 @@ function App() {
                     >
                       {msg.isSystem ? (
                         <div className="flex items-center justify-center">
-                          <span className="chat-bubble-system">{msg.message}</span>
+                          <span className="chat-bubble-system bg-orange-100 text-orange-700 px-3 py-1.5">
+                            {msg.message}
+                          </span>
                         </div>
                       ) : (
                         <div
@@ -853,10 +1153,10 @@ function App() {
                             </span>
                             <div
                               className={cn(
-                                "chat-bubble",
+                                "chat-bubble px-4 py-3 rounded-2xl",
                                 msg.nickname === nickname
-                                  ? "chat-bubble-self"
-                                  : "chat-bubble-other"
+                                  ? "bg-gradient-to-r from-orange-500 to-yellow-500 text-white"
+                                  : "bg-white text-gray-800 border-2 border-orange-100"
                               )}
                             >
                               <p className="text-sm font-medium break-words">{msg.message}</p>
@@ -870,7 +1170,7 @@ function App() {
               </div>
 
               {/* 输入框 */}
-              <div className="p-4 border-t-2 border-purple-100 bg-white">
+              <div className="p-4 border-t-2 border-orange-100 bg-white">
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -879,7 +1179,7 @@ function App() {
                     onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
                     placeholder={isDrawer ? "画画中..." : "输入答案..."}
                     disabled={isDrawer}
-                    className="input-doodle flex-1"
+                    className="input-doodle flex-1 border-2 border-orange-200 focus:border-orange-400"
                     maxLength={50}
                   />
                   <motion.button
@@ -890,7 +1190,7 @@ function App() {
                       "btn-3d px-5 py-3 rounded-xl flex items-center gap-2",
                       isDrawer || !messageInput.trim()
                         ? "bg-gray-400 cursor-not-allowed"
-                        : "btn-purple"
+                        : "btn-warm"
                     )}
                   >
                     <Send className="w-4 h-4" />

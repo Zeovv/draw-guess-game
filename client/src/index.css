@@ -18,6 +18,8 @@ body {
   /* 移动端优化：防止回弹效果 */
   overscroll-behavior: none;
   touch-action: manipulation;
+  /* 暖黄色背景 */
+  background-color: #FFF9E6;
 }
 
 #root {
@@ -112,6 +114,16 @@ canvas {
 
   .btn-red {
     background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+    color: white;
+  }
+
+  .btn-warm {
+    background: linear-gradient(135deg, #f97316 0%, #fbbf24 100%);
+    color: white;
+  }
+
+  .btn-warm-light {
+    background: linear-gradient(135deg, #fb923c 0%, #fcd34d 100%);
     color: white;
   }
 }
@@ -220,6 +232,32 @@ canvas {
 
 .animate-scale-in {
   animation: scale-in 0.3s ease-out;
+}
+
+@keyframes bounce-pop {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes float-gentle {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-bounce-pop {
+  animation: bounce-pop 0.6s ease-in-out;
+}
+
+.animate-float-gentle {
+  animation: float-gentle 3s ease-in-out infinite;
 }
 
 /* ==================== Input Styles ==================== */
@@ -395,6 +433,17 @@ input[type="range"]::-moz-range-thumb:hover {
     background: rgba(245, 158, 11, 0.1);
     color: #f59e0b;
   }
+
+  .badge-warm {
+    background: rgba(251, 146, 60, 0.15);
+    color: #f97316;
+    border: 1px solid rgba(251, 146, 60, 0.3);
+  }
+
+  .badge-warm-solid {
+    background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+    color: white;
+  }
 }
 
 /* ==================== Color Picker Styles ==================== */
@@ -482,6 +531,23 @@ input, button {
 #root {
   overscroll-behavior: none;
   touch-action: none;
+}
+
+/* iOS安全区域适配 */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+.pl-safe {
+  padding-left: env(safe-area-inset-left, 0);
+}
+
+.pr-safe {
+  padding-right: env(safe-area-inset-right, 0);
 }
 
 /* ==================== Responsive Helpers ==================== */
