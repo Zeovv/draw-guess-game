@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: draw-guess-server
+    env: node
+    plan: free
+    buildCommand: cd server && npm install
+    startCommand: cd server && node index.js
+    envVars:
+      - key: PORT
+        value: 3001
