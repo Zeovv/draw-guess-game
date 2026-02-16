@@ -15,6 +15,9 @@ body {
   overflow: hidden;
   width: 100vw;
   height: 100vh;
+  /* 移动端优化：防止回弹效果 */
+  overscroll-behavior: none;
+  touch-action: manipulation;
 }
 
 #root {
@@ -27,6 +30,7 @@ canvas {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* 防止移动端滚动（针对聊天区域） */
@@ -93,4 +97,27 @@ input[type="range"]::-moz-range-thumb {
 
 input[type="range"]::-moz-range-thumb:hover {
   transform: scale(1.1);
+}
+
+/* 移动端输入框优化 */
+input, button {
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+/* 防止移动端长按选中文本 */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* 移动端滚动容器优化 */
+.flex-1.overflow-y-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 移动端防止页面缩放和滑动 */
+#root {
+  overscroll-behavior: none;
+  touch-action: none;
 }
