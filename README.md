@@ -83,7 +83,7 @@
 
 ### 1. 克隆项目
 ```bash
-git clone https://github.com/your-username/draw-guess-game.git
+git clone https://github.com/Zeovv/draw-guess-game.git
 cd draw-guess-game
 ```
 
@@ -271,7 +271,7 @@ npx nodemon index.js
 
 遇到问题或有建议？请通过以下方式联系：
 
-1. 在 GitHub 仓库提交 [Issue](https://github.com/your-username/draw-guess-game/issues)
+1. 在 GitHub 仓库提交 [Issue](https://github.com/Zeovv/draw-guess-game/issues)
 2. 查看详细部署指南 [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
 3. 参考快速部署指南 [README_DEPLOY.md](README_DEPLOY.md)
 
