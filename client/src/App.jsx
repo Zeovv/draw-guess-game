@@ -448,7 +448,31 @@ function App() {
       setGameState(state.gameState);
       setCurrentDrawerIndex(state.currentDrawerIndex);
       setCurrentWord(state.currentWord || null);
-      setCurrentWordHint(state.currentWord?.hint || '');
+
+      // 处理渐进式提示同步
+      const hintsReleased = state.hintsReleased || 0;
+      const wordHints = state.currentWord?.hints || [];
+      const hintIndex = Math.max(0, hintsReleased - 1); // 已发布提示的最大索引
+
+      // 重建当前提示数组
+      if (wordHints.length > 0 && hintsReleased > 0) {
+        const currentHintsArray = new Array(wordHints.length).fill('');
+        for (let i = 0; i < hintsReleased; i++) {
+          if (i < wordHints.length) {
+            currentHintsArray[i] = wordHints[i];
+          }
+        }
+        setCurrentHints(currentHintsArray);
+        setHintIndex(hintIndex);
+        // 设置当前显示的提示（兼容旧逻辑）
+        setCurrentWordHint(wordHints[0] || '');
+      } else {
+        // 没有提示或未发布提示
+        setCurrentHints([]);
+        setHintIndex(0);
+        setCurrentWordHint('');
+      }
+
       setCurrentWordLength(state.currentWord?.word?.length || 0);
       setTimer(state.timer);
       setCurrentRound(state.currentRound);
@@ -592,6 +616,7 @@ function App() {
       socket.off('timer_update');
       socket.off('word_selection');
       socket.off('word_selected');
+      socket.off('update_hint');
       socket.off('player_ready_update');
       socket.off('score_update');
       socket.off('round_end');
@@ -620,7 +645,32 @@ function App() {
   const updateGameStateFromRoomState = (roomState) => {
     setGameState(roomState.gameState);
     setCurrentDrawerIndex(roomState.currentDrawerIndex);
-    setCurrentWordHint(roomState.currentWord?.hint || '');
+    setCurrentWord(roomState.currentWord || null);
+
+    // 处理渐进式提示同步
+    const hintsReleased = roomState.hintsReleased || 0;
+    const wordHints = roomState.currentWord?.hints || [];
+    const hintIndex = Math.max(0, hintsReleased - 1); // 已发布提示的最大索引
+
+    // 重建当前提示数组
+    if (wordHints.length > 0 && hintsReleased > 0) {
+      const currentHintsArray = new Array(wordHints.length).fill('');
+      for (let i = 0; i < hintsReleased; i++) {
+        if (i < wordHints.length) {
+          currentHintsArray[i] = wordHints[i];
+        }
+      }
+      setCurrentHints(currentHintsArray);
+      setHintIndex(hintIndex);
+      // 设置当前显示的提示（兼容旧逻辑）
+      setCurrentWordHint(wordHints[0] || '');
+    } else {
+      // 没有提示或未发布提示
+      setCurrentHints([]);
+      setHintIndex(0);
+      setCurrentWordHint('');
+    }
+
     setCurrentWordLength(roomState.currentWord?.word?.length || 0);
     setTimer(roomState.timer);
     setCurrentRound(roomState.currentRound);

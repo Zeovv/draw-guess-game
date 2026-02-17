@@ -57,7 +57,8 @@ function broadcastGameState(io, roomId, room) {
     scores: room.scores,
     readyPlayers: room.readyPlayers,
     wordOptions: room.wordOptions,
-    roundEndTime: room.roundEndTime
+    roundEndTime: room.roundEndTime,
+    hintsReleased: room.hintsReleased || 0 // 添加已发布提示数量
   });
 }
 
@@ -100,23 +101,23 @@ function startRoomTimer(io, roomId, room, duration, onTimeout) {
     // 渐进式提示逻辑（仅在绘画阶段）
     if (room.gameState === GAME_STATE.DRAWING && room.currentWord) {
       // T=40s (剩余50s): 发布第二个提示
-      if (remaining === 50 && room.hintsReleased < 2) {
+      if (remaining <= 50 && remaining > 45 && room.hintsReleased < 2) {
         room.hintsReleased = 2;
         io.to(roomId).emit('update_hint', {
           hint: getHintAtIndex(room.currentWord.word, 1),
           hintIndex: 1,
-          totalHints: 3
+          totalHints: room.currentWord.hints ? room.currentWord.hints.length : 3
         });
         console.log(`房间 ${roomId} 发布第二个提示: ${getHintAtIndex(room.currentWord.word, 1)}`);
       }
 
       // T=80s (剩余10s): 发布第三个提示
-      if (remaining === 10 && room.hintsReleased < 3) {
+      if (remaining <= 10 && remaining > 5 && room.hintsReleased < 3) {
         room.hintsReleased = 3;
         io.to(roomId).emit('update_hint', {
           hint: getHintAtIndex(room.currentWord.word, 2),
           hintIndex: 2,
-          totalHints: 3
+          totalHints: room.currentWord.hints ? room.currentWord.hints.length : 3
         });
         console.log(`房间 ${roomId} 发布第三个提示: ${getHintAtIndex(room.currentWord.word, 2)}`);
       }
@@ -306,7 +307,7 @@ function selectWord(io, roomId, room, userId, wordObj) {
     drawerNickname: drawer.nickname,
     wordLength: wordObj.word.length,
     hintIndex: 0,
-    totalHints: 3
+    totalHints: wordObj.hints ? wordObj.hints.length : 3
   });
 
   // 开始绘画猜词倒计时
@@ -402,7 +403,8 @@ io.on('connection', (socket) => {
         maxRounds: room.maxRounds,
         scores: room.scores,
         readyPlayers: room.readyPlayers,
-        ownerId: room.ownerId
+        ownerId: room.ownerId,
+        hintsReleased: room.hintsReleased || 0
       }
     });
 
