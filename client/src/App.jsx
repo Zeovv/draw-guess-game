@@ -955,7 +955,6 @@ function App() {
                   ) : (
                     <>
                       <span className="text-green-800 font-bold">提示: {formatHints(currentHints, hintIndex)}</span>
-                      <span className="text-gray-600">({currentWordLength}个字)</span>
                     </>
                   )}
                 </>
