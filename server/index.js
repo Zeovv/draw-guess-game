@@ -185,12 +185,18 @@ function startNewRound(io, roomId, room) {
   }
 
   // 切换到下一个画手
+  const oldDrawerIndex = room.currentDrawerIndex;
   room.currentDrawerIndex = getNextDrawer(room);
 
   // 确保画手索引有效
   if (room.currentDrawerIndex < 0 || room.currentDrawerIndex >= room.users.length) {
     room.currentDrawerIndex = 0;
   }
+
+  // 记录轮次切换
+  const oldDrawer = room.users[oldDrawerIndex];
+  const newDrawer = room.users[room.currentDrawerIndex];
+  console.log(`房间 ${roomId} 轮次切换: 旧画手 ${oldDrawer?.nickname || '无'} -> 新画手 ${newDrawer?.nickname || '无'}`);
 
   // 更新用户画手状态
   room.users.forEach((user, index) => {
@@ -205,14 +211,27 @@ function startNewRound(io, roomId, room) {
   // 进入选词阶段
   room.gameState = GAME_STATE.SELECTING;
 
-  // 如果是画手，发送单词选项
+  // 如果是画手，准备单词选项并广播状态
   const drawer = room.users[room.currentDrawerIndex];
   if (drawer) {
     room.wordOptions = getRandomWords(3);
+    // 先广播游戏状态更新，确保客户端 gameState 已更新为 SELECTING
+    broadcastGameState(io, roomId, room);
+    // 然后向画手发送单词选择事件
     io.to(drawer.id).emit('word_selection', {
       options: room.wordOptions,
       timer: TIMER.SELECTING
     });
+    // 通知新画手其角色
+    io.to(drawer.id).emit('role_assigned', {
+      isDrawer: true,
+      isOwner: drawer.isOwner,
+      userId: drawer.id
+    });
+    console.log(`房间 ${roomId} 新画手: ${drawer.nickname} (${drawer.id})`);
+  } else {
+    // 没有画手（不应该发生），但仍广播状态
+    broadcastGameState(io, roomId, room);
   }
 
   // 开始选词倒计时
@@ -228,8 +247,6 @@ function startNewRound(io, roomId, room) {
       }
     }
   });
-
-  broadcastGameState(io, roomId, room);
 
   console.log(`房间 ${roomId} 开始新回合，画手: ${drawer?.nickname}`);
 }
@@ -371,6 +388,20 @@ io.on('connection', (socket) => {
       return;
     }
     const { roomId, startX, startY, endX, endY, color, lineWidth } = data;
+
+    const room = rooms[roomId];
+    if (!room) return;
+
+    // 验证发送者是否为当前画手且游戏状态为 DRAWING
+    const userIndex = room.users.findIndex(u => u.id === socket.id);
+    if (userIndex === -1) return;
+
+    const isDrawer = userIndex === room.currentDrawerIndex;
+    if (!isDrawer || room.gameState !== GAME_STATE.DRAWING) {
+      console.log(`拒绝非画手或非绘画阶段的画笔操作: 用户 ${socket.id}, 画手? ${isDrawer}, 游戏状态: ${room.gameState}`);
+      return;
+    }
+
     socket.to(roomId).emit('draw_line', {
       startX,
       startY,
@@ -491,6 +522,19 @@ io.on('connection', (socket) => {
       return;
     }
     const { roomId } = data;
+    const room = rooms[roomId];
+    if (!room) return;
+
+    // 验证发送者是否为当前画手且游戏状态为 DRAWING
+    const userIndex = room.users.findIndex(u => u.id === socket.id);
+    if (userIndex === -1) return;
+
+    const isDrawer = userIndex === room.currentDrawerIndex;
+    if (!isDrawer || room.gameState !== GAME_STATE.DRAWING) {
+      console.log(`拒绝非画手或非绘画阶段的清空画布操作: 用户 ${socket.id}, 画手? ${isDrawer}, 游戏状态: ${room.gameState}`);
+      return;
+    }
+
     io.to(roomId).emit('clear_canvas');
   });
 

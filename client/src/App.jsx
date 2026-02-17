@@ -220,7 +220,8 @@ function App() {
 
   // 鼠标/触摸事件处理
   const handleStart = (e) => {
-    if (!isDrawer) return;
+    // 只有在绘画阶段且是画手才能开始绘制
+    if (!isDrawer || gameState !== 'DRAWING') return;
     e.preventDefault();
     isDrawingRef.current = true;
     const coords = getCanvasCoords(e);
@@ -228,7 +229,8 @@ function App() {
   };
 
   const handleMove = (e) => {
-    if (!isDrawer || !isDrawingRef.current) return;
+    // 只有在绘画阶段且是画手且正在绘制中才能移动绘制
+    if (!isDrawer || gameState !== 'DRAWING' || !isDrawingRef.current) return;
     e.preventDefault();
     const coords = getCanvasCoords(e);
     const { x: endX, y: endY } = coords;
@@ -323,6 +325,9 @@ function App() {
       setScores(state.scores);
       setReadyPlayers(state.readyPlayers);
       setWordOptions(state.wordOptions || []);
+      // 根据当前画手索引更新 isDrawer 状态
+      // 注意：这里的 users 状态可能不是最新的，但会在 user_joined/user_left 事件中更新
+      // 我们通过 useEffect 依赖来确保最终一致性
     });
 
     // 计时器更新
@@ -430,6 +435,20 @@ function App() {
       listenersRegistered.current = false;
     };
   }, [roomId]);
+
+  // 同步 isDrawer 状态：根据 currentDrawerIndex 和 users 列表计算
+  useEffect(() => {
+    if (users.length === 0) {
+      setIsDrawer(false);
+      return;
+    }
+    const drawerUser = users[currentDrawerIndex];
+    if (drawerUser && drawerUser.id === socket.id) {
+      setIsDrawer(true);
+    } else {
+      setIsDrawer(false);
+    }
+  }, [currentDrawerIndex, users, socket.id]);
 
   // 工具函数：从房间状态更新游戏状态
   const updateGameStateFromRoomState = (roomState) => {
