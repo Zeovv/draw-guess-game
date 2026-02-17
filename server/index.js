@@ -2,7 +2,7 @@ const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const { getRandomWords, getHintForWord } = require('./words.js');
+const { getRandomWords, getHintForWord, getHintAtIndex } = require('./words.js');
 
 const app = express();
 app.use(cors());
@@ -39,7 +39,7 @@ const GAME_STATE = {
 // 计时器常量
 const TIMER = {
   SELECTING: 25,  // 选词时间25秒
-  DRAWING: 60     // 绘画猜词时间60秒
+  DRAWING: 90     // 绘画猜词时间90秒（原60秒）
 };
 
 // 存储房间数据
@@ -95,6 +95,31 @@ function startRoomTimer(io, roomId, room, duration, onTimeout) {
     if (room.timer !== null && remaining !== room.timer) {
       room.timer = remaining;
       io.to(roomId).emit('timer_update', { timer: room.timer });
+    }
+
+    // 渐进式提示逻辑（仅在绘画阶段）
+    if (room.gameState === GAME_STATE.DRAWING && room.currentWord) {
+      // T=40s (剩余50s): 发布第二个提示
+      if (remaining === 50 && room.hintsReleased < 2) {
+        room.hintsReleased = 2;
+        io.to(roomId).emit('update_hint', {
+          hint: getHintAtIndex(room.currentWord.word, 1),
+          hintIndex: 1,
+          totalHints: 3
+        });
+        console.log(`房间 ${roomId} 发布第二个提示: ${getHintAtIndex(room.currentWord.word, 1)}`);
+      }
+
+      // T=80s (剩余10s): 发布第三个提示
+      if (remaining === 10 && room.hintsReleased < 3) {
+        room.hintsReleased = 3;
+        io.to(roomId).emit('update_hint', {
+          hint: getHintAtIndex(room.currentWord.word, 2),
+          hintIndex: 2,
+          totalHints: 3
+        });
+        console.log(`房间 ${roomId} 发布第三个提示: ${getHintAtIndex(room.currentWord.word, 2)}`);
+      }
     }
 
     if (remaining <= 0) {
@@ -158,6 +183,9 @@ function endRound(io, roomId, room, reason = 'timeout') {
     });
   }
 
+  // 重置提示计数器
+  room.hintsReleased = 0;
+
   // 广播回合结束
   io.to(roomId).emit('round_end', {
     reason,
@@ -207,6 +235,7 @@ function startNewRound(io, roomId, room) {
   // 重置当前单词
   room.currentWord = null;
   room.wordOptions = [];
+  room.hintsReleased = 0; // 重置提示计数器
 
   // 进入选词阶段
   room.gameState = GAME_STATE.SELECTING;
@@ -268,11 +297,16 @@ function selectWord(io, roomId, room, userId, wordObj) {
   room.gameState = GAME_STATE.DRAWING;
   clearRoomTimer(room);
 
-  // 广播单词已选择（只广播提示，不广播单词本身）
+  // 初始化渐进式提示计数器
+  room.hintsReleased = 1; // 已发布1个提示（第一个）
+
+  // 广播单词已选择（发送第一个提示）
   io.to(roomId).emit('word_selected', {
-    hint: wordObj.hint,
+    hint: getHintAtIndex(wordObj.word, 0), // 第一个提示
     drawerNickname: drawer.nickname,
-    wordLength: wordObj.word.length
+    wordLength: wordObj.word.length,
+    hintIndex: 0,
+    totalHints: 3
   });
 
   // 开始绘画猜词倒计时
@@ -309,7 +343,8 @@ io.on('connection', (socket) => {
         currentRound: 0,
         maxRounds: 5, // 默认5轮
         timerInterval: null,
-        ownerId: null // 房主ID
+        ownerId: null, // 房主ID
+        hintsReleased: 0 // 已发布的提示数量
       };
     }
 

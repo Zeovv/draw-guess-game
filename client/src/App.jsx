@@ -7,6 +7,7 @@ import {
 import socket from './socket';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import confetti from 'canvas-confetti';
 
 // 工具函数：合并 className
 function cn(...inputs) {
@@ -75,7 +76,9 @@ function App() {
   const [gameState, setGameState] = useState('WAITING'); // 'WAITING', 'SELECTING', 'DRAWING', 'ROUND_END', 'GAME_END'
   const [timer, setTimer] = useState(0);
   const [currentWord, setCurrentWord] = useState(null); // 当前单词对象 {word, hint}
-  const [currentWordHint, setCurrentWordHint] = useState('');
+  const [currentWordHint, setCurrentWordHint] = useState(''); // 当前显示的提示（兼容旧逻辑）
+  const [currentHints, setCurrentHints] = useState([]); // 渐进式提示数组
+  const [hintIndex, setHintIndex] = useState(0); // 当前提示索引
   const [currentWordLength, setCurrentWordLength] = useState(0);
   const [readyPlayers, setReadyPlayers] = useState([]);
   const [isReady, setIsReady] = useState(false);
@@ -101,6 +104,51 @@ function App() {
   const [showBrushSizePicker, setShowBrushSizePicker] = useState(false);
 
   // ========== 业务逻辑函数 ==========
+
+  // 格式化提示数组为显示字符串
+  const formatHints = (hints, currentIndex) => {
+    if (!hints || hints.length === 0) return '';
+
+    // 过滤掉空字符串，只显示已发布的提示
+    const validHints = hints.slice(0, currentIndex + 1).filter(hint => hint && hint.trim());
+
+    if (validHints.length === 0) return '';
+    if (validHints.length === 1) return validHints[0];
+
+    // 用 " | " 分隔已发布的提示
+    return validHints.join(' | ');
+  };
+
+  // 触发庆祝特效
+  const triggerConfetti = () => {
+    confetti({
+      particleCount: 150,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff']
+    });
+
+    // 额外的小礼花
+    setTimeout(() => {
+      confetti({
+        particleCount: 100,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0, y: 0.6 },
+        colors: ['#ff0000', '#00ff00', '#0000ff']
+      });
+    }, 250);
+
+    setTimeout(() => {
+      confetti({
+        particleCount: 100,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1, y: 0.6 },
+        colors: ['#ffff00', '#ff00ff', '#00ffff']
+      });
+    }, 500);
+  };
 
   // 加入房间
   const handleJoinRoom = () => {
@@ -357,6 +405,11 @@ function App() {
         top: Math.random() * 70 + 10, // 10% 到 80% 的随机垂直位置
         createdAt: Date.now(),
       }]);
+
+      // 检查是否猜对消息，触发庆祝特效
+      if (message.includes('猜对了') || message.includes('恭喜')) {
+        triggerConfetti();
+      }
     });
 
     // 用户加入
@@ -421,13 +474,44 @@ function App() {
     });
 
     // 单词已选择
-    socket.on('word_selected', ({ hint, drawerNickname, wordLength }) => {
+    socket.on('word_selected', ({ hint, drawerNickname, wordLength, hintIndex = 0, totalHints = 3 }) => {
       setCurrentWordHint(hint);
       setCurrentWordLength(wordLength);
+      setHintIndex(hintIndex);
+
+      // 初始化渐进式提示数组
+      const initialHints = new Array(totalHints).fill('');
+      initialHints[hintIndex] = hint;
+      setCurrentHints(initialHints);
+
       setShowWordSelection(false);
       // 添加系统消息
       setMessages((prev) => [...prev, {
         message: `${drawerNickname} 已选择单词，提示: ${hint}`,
+        nickname: '系统',
+        isSystem: true
+      }]);
+    });
+
+    // 更新提示（渐进式提示）
+    socket.on('update_hint', ({ hint, hintIndex, totalHints }) => {
+      setCurrentWordHint(hint);
+      setHintIndex(hintIndex);
+
+      // 更新渐进式提示数组
+      setCurrentHints(prev => {
+        const newHints = [...prev];
+        // 确保数组足够大
+        while (newHints.length <= hintIndex) {
+          newHints.push('');
+        }
+        newHints[hintIndex] = hint;
+        return newHints;
+      });
+
+      // 添加系统消息
+      setMessages((prev) => [...prev, {
+        message: `新的提示: ${hint}`,
         nickname: '系统',
         isSystem: true
       }]);
@@ -464,6 +548,10 @@ function App() {
       setGameState('ROUND_END');
       setCurrentDrawerIndex(nextDrawerIndex);
       setScores(roundScores);
+      // 重置提示状态
+      setCurrentHints([]);
+      setHintIndex(0);
+      setCurrentWordHint('');
       // 添加系统消息
       const wordText = currentWord ? `"${currentWord.word}"` : '未知单词';
       setMessages((prev) => [...prev, {
@@ -812,11 +900,11 @@ function App() {
                   {isDrawer ? (
                     <>
                       <span className="text-green-800 font-bold">题目: {currentWord?.word || '未知'}</span>
-                      <span className="text-gray-600">(提示: {currentWordHint})</span>
+                      <span className="text-gray-600">(提示: {formatHints(currentHints, hintIndex)})</span>
                     </>
                   ) : (
                     <>
-                      <span className="text-green-800 font-bold">提示: {currentWordHint}</span>
+                      <span className="text-green-800 font-bold">提示: {formatHints(currentHints, hintIndex)}</span>
                       <span className="text-gray-600">({currentWordLength}个字)</span>
                     </>
                   )}
