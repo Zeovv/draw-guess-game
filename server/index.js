@@ -217,6 +217,8 @@ function startNewRound(io, roomId, room) {
     room.wordOptions = getRandomWords(3);
     // 先广播游戏状态更新，确保客户端 gameState 已更新为 SELECTING
     broadcastGameState(io, roomId, room);
+    // 自动清空画布，开始新回合
+    io.to(roomId).emit('clear_canvas');
     // 然后向画手发送单词选择事件
     io.to(drawer.id).emit('word_selection', {
       options: room.wordOptions,
@@ -230,8 +232,9 @@ function startNewRound(io, roomId, room) {
     });
     console.log(`房间 ${roomId} 新画手: ${drawer.nickname} (${drawer.id})`);
   } else {
-    // 没有画手（不应该发生），但仍广播状态
+    // 没有画手（不应该发生），但仍广播状态和清空画布
     broadcastGameState(io, roomId, room);
+    io.to(roomId).emit('clear_canvas');
   }
 
   // 开始选词倒计时

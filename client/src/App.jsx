@@ -67,12 +67,14 @@ function App() {
   const [isDrawer, setIsDrawer] = useState(false);
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
+  const [danmakuItems, setDanmakuItems] = useState([]); // 弹幕消息
   const [users, setUsers] = useState([]);
   const [showMobileChat, setShowMobileChat] = useState(false);
   const [copied, setCopied] = useState(false);
   // ========== 游戏流程状态 ==========
   const [gameState, setGameState] = useState('WAITING'); // 'WAITING', 'SELECTING', 'DRAWING', 'ROUND_END', 'GAME_END'
   const [timer, setTimer] = useState(0);
+  const [currentWord, setCurrentWord] = useState(null); // 当前单词对象 {word, hint}
   const [currentWordHint, setCurrentWordHint] = useState('');
   const [currentWordLength, setCurrentWordLength] = useState(0);
   const [readyPlayers, setReadyPlayers] = useState([]);
@@ -90,6 +92,7 @@ function App() {
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef({ x: 0, y: 0 });
   const listenersRegistered = useRef(false);
+  const linesRef = useRef([]); // 存储所有线条数据，用于重绘
 
   // ========== 画笔设置 ==========
   const [brushColor, setBrushColor] = useState('#000000');
@@ -181,12 +184,10 @@ function App() {
     socket.emit('next_round', { roomId });
   };
 
-  // 获取 Canvas 坐标
+  // 获取 Canvas 坐标（相对坐标 0.0-1.0）
   const getCanvasCoords = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
 
     let clientX, clientY;
     if (e.touches) {
@@ -197,25 +198,76 @@ function App() {
       clientY = e.clientY;
     }
 
+    // 转换为相对坐标 (0.0-1.0)
     return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY,
+      x: (clientX - rect.left) / rect.width,
+      y: (clientY - rect.top) / rect.height,
     };
   };
 
-  // 绘制线条
+  // 绘制线条（接受相对坐标 0.0-1.0）
+  // 重绘所有存储的线条
+  const redrawAllLines = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    // 清空画布
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 重绘所有线条
+    linesRef.current.forEach(line => {
+      const { startX, startY, endX, endY, color, lineWidth } = line;
+
+      // 将相对坐标转换为绝对像素坐标
+      const absStartX = startX * canvas.width;
+      const absStartY = startY * canvas.height;
+      const absEndX = endX * canvas.width;
+      const absEndY = endY * canvas.height;
+
+      // 将线条粗细转换为相对值（基于canvas最小维度）
+      const minDimension = Math.min(canvas.width, canvas.height);
+      const absLineWidth = lineWidth * minDimension;
+
+      ctx.beginPath();
+      ctx.moveTo(absStartX, absStartY);
+      ctx.lineTo(absEndX, absEndY);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = absLineWidth;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    });
+  };
+
   const drawLine = (startX, startY, endX, endY, color, lineWidth) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+
+    // 将相对坐标转换为绝对像素坐标
+    const absStartX = startX * canvas.width;
+    const absStartY = startY * canvas.height;
+    const absEndX = endX * canvas.width;
+    const absEndY = endY * canvas.height;
+
+    // 将线条粗细转换为相对值（基于canvas最小维度）
+    const minDimension = Math.min(canvas.width, canvas.height);
+    const absLineWidth = lineWidth * minDimension;
+
     ctx.beginPath();
-    ctx.moveTo(startX, startY);
-    ctx.lineTo(endX, endY);
+    ctx.moveTo(absStartX, absStartY);
+    ctx.lineTo(absEndX, absEndY);
     ctx.strokeStyle = color;
-    ctx.lineWidth = lineWidth;
+    ctx.lineWidth = absLineWidth;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.stroke();
+
+    // 存储线条数据用于重绘
+    linesRef.current.push({
+      startX, startY, endX, endY, color, lineWidth
+    });
   };
 
   // 鼠标/触摸事件处理
@@ -236,18 +288,25 @@ function App() {
     const { x: endX, y: endY } = coords;
     const { x: startX, y: startY } = lastPosRef.current;
 
-    // 本地绘制
-    drawLine(startX, startY, endX, endY, brushColor, brushSize);
+    // 本地绘制（使用相对线条粗细）
+    const canvas = canvasRef.current;
+    const minDimension = canvas ? Math.min(canvas.width, canvas.height) : 1000;
+    const relativeLineWidth = brushSize / minDimension;
+    drawLine(startX, startY, endX, endY, brushColor, relativeLineWidth);
 
-    // 广播给其他玩家
+    // 广播给其他玩家（发送相对坐标和相对线条粗细）
+    const canvas = canvasRef.current;
+    const minDimension = canvas ? Math.min(canvas.width, canvas.height) : 1000;
+    const relativeLineWidth = brushSize / minDimension;
+
     socket.emit('draw_line', {
       roomId,
-      startX,
+      startX,  // 相对坐标 (0.0-1.0)
       startY,
       endX,
       endY,
       color: brushColor,
-      lineWidth: brushSize,
+      lineWidth: relativeLineWidth, // 相对线条粗细
     });
 
     lastPosRef.current = coords;
@@ -262,8 +321,19 @@ function App() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const container = canvas.parentElement;
+
+    // 保存当前尺寸用于检查是否需要重绘
+    const oldWidth = canvas.width;
+    const oldHeight = canvas.height;
+
+    // 设置新尺寸
     canvas.width = container.clientWidth;
     canvas.height = container.clientHeight;
+
+    // 如果尺寸变化且有条线条数据，重绘所有线条
+    if ((oldWidth !== canvas.width || oldHeight !== canvas.height) && linesRef.current.length > 0) {
+      redrawAllLines();
+    }
   };
 
   // ========== Socket 事件监听 ==========
@@ -282,6 +352,14 @@ function App() {
     // 接收消息
     socket.on('receive_message', ({ message, nickname, timestamp }) => {
       setMessages((prev) => [...prev, { message, nickname, timestamp }]);
+      // 添加弹幕效果（非系统消息）
+      setDanmakuItems(prev => [...prev, {
+        id: Date.now() + Math.random(),
+        message,
+        nickname,
+        top: Math.random() * 70 + 10, // 10% 到 80% 的随机垂直位置
+        createdAt: Date.now(),
+      }]);
     });
 
     // 用户加入
@@ -310,6 +388,8 @@ function App() {
       if (canvas) {
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // 清空存储的线条数据
+        linesRef.current = [];
       }
     });
 
@@ -317,6 +397,7 @@ function App() {
     socket.on('game_state_update', (state) => {
       setGameState(state.gameState);
       setCurrentDrawerIndex(state.currentDrawerIndex);
+      setCurrentWord(state.currentWord || null);
       setCurrentWordHint(state.currentWord?.hint || '');
       setCurrentWordLength(state.currentWord?.word?.length || 0);
       setTimer(state.timer);
@@ -479,6 +560,16 @@ function App() {
       chatContainer.scrollTop = chatContainer.scrollHeight;
     }
   }, [messages]);
+
+  // 清理过期的弹幕（超过10秒）
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setDanmakuItems(prev => prev.filter(item => now - item.createdAt < 10000)); // 10秒
+    }, 1000); // 每秒检查一次
+
+    return () => clearInterval(interval);
+  }, []);
 
   // ========== 登录页 ==========
   if (page === 'login') {
@@ -721,8 +812,17 @@ function App() {
               )}
               {gameState === 'DRAWING' && (
                 <>
-                  <span className="text-green-800 font-bold">提示: {currentWordHint}</span>
-                  <span className="text-gray-600">({currentWordLength}个字)</span>
+                  {isDrawer ? (
+                    <>
+                      <span className="text-green-800 font-bold">题目: {currentWord?.word || '未知'}</span>
+                      <span className="text-gray-600">(提示: {currentWordHint})</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-green-800 font-bold">提示: {currentWordHint}</span>
+                      <span className="text-gray-600">({currentWordLength}个字)</span>
+                    </>
+                  )}
                 </>
               )}
               {gameState === 'ROUND_END' && (
@@ -977,6 +1077,24 @@ function App() {
                 onTouchMove={handleMove}
                 onTouchEnd={handleEnd}
               />
+              {/* 弹幕层 */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-3xl">
+                {danmakuItems.map(item => (
+                  <div
+                    key={item.id}
+                    className="absolute whitespace-nowrap text-white text-sm font-bold px-2 py-1"
+                    style={{
+                      top: `${item.top}%`,
+                      left: '100%',
+                      transform: 'translateX(0)',
+                      textShadow: '1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black',
+                      animation: `danmaku-slide 10s linear forwards`,
+                    }}
+                  >
+                    {item.nickname}: {item.message}
+                  </div>
+                ))}
+              </div>
               {isDrawer && (
                 <div className="absolute top-4 left-4 z-10 badge badge-warm-solid px-3 py-1.5">
                   <Pencil className="w-3 h-3" />
@@ -1331,6 +1449,24 @@ function App() {
                 onTouchMove={handleMove}
                 onTouchEnd={handleEnd}
               />
+              {/* 弹幕层 */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                {danmakuItems.map(item => (
+                  <div
+                    key={item.id}
+                    className="absolute whitespace-nowrap text-white text-sm font-bold px-2 py-1"
+                    style={{
+                      top: `${item.top}%`,
+                      left: '100%',
+                      transform: 'translateX(0)',
+                      textShadow: '1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black',
+                      animation: `danmaku-slide 10s linear forwards`,
+                    }}
+                  >
+                    {item.nickname}: {item.message}
+                  </div>
+                ))}
+              </div>
             </div>
           </main>
 
