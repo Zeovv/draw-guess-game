@@ -288,16 +288,13 @@ function App() {
     const { x: endX, y: endY } = coords;
     const { x: startX, y: startY } = lastPosRef.current;
 
-    // 本地绘制（使用相对线条粗细）
+    // 本地绘制和广播（使用相对线条粗细）
     const canvas = canvasRef.current;
     const minDimension = canvas ? Math.min(canvas.width, canvas.height) : 1000;
     const relativeLineWidth = brushSize / minDimension;
     drawLine(startX, startY, endX, endY, brushColor, relativeLineWidth);
 
     // 广播给其他玩家（发送相对坐标和相对线条粗细）
-    const canvas = canvasRef.current;
-    const minDimension = canvas ? Math.min(canvas.width, canvas.height) : 1000;
-    const relativeLineWidth = brushSize / minDimension;
 
     socket.emit('draw_line', {
       roomId,
