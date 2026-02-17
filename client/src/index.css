@@ -636,13 +636,13 @@ input, button {
 }
 
 .confetti-particle.fall {
-  animation: confetti-fall linear forwards;
+  animation: confetti-fall 2s linear forwards;
 }
 
 .confetti-particle.explosion {
   --tx: 0;
   --ty: 0;
-  animation: confetti-explosion ease-out forwards;
+  animation: confetti-explosion 1s ease-out forwards;
 }
 
 .celebration-pulse {

@@ -190,10 +190,9 @@ function App() {
     } else {
       // PC端：根据用户选择，使用CSS动画或canvas-confetti
       // 这里使用CSS动画作为默认，避免潜在性能问题
-      triggerCSSConfetti();
+      // triggerCSSConfetti(); // 暂时禁用CSS动画，使用canvas-confetti
 
       // 如果需要使用canvas-confetti，可以取消下面代码的注释
-      /*
       const pcConfig = {
         particleCount: 100, // 减少粒子数量
         spread: 70,
@@ -242,7 +241,6 @@ function App() {
           sideConfetti(120, ['#ffff00', '#ff00ff'], 600);
         }
       }
-      */
     }
   };
 
@@ -276,13 +274,6 @@ function App() {
   const triggerCSSConfetti = () => {
     const isMobile = isMobileDevice();
     const perfLevel = getDevicePerformanceLevel();
-
-    // 防抖机制：避免短时间内多次触发
-    const now = Date.now();
-    if (now - lastConfettiTimeRef.current < 5000) { // 5秒内只触发一次
-      return;
-    }
-    lastConfettiTimeRef.current = now;
 
     // 检查是否偏好减少运动
     if (typeof window !== 'undefined' && window.matchMedia &&
