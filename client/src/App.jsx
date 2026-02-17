@@ -700,8 +700,12 @@ function App() {
         // 使用setTimeout延迟执行，避免阻塞主线程
         setTimeout(() => {
           try {
-            // 只在游戏进行中且不是系统消息时触发
-            if (gameState === 'DRAWING' && nickname !== '系统') {
+            // 当玩家猜对时触发庆祝特效（放宽条件）
+            // 系统消息也会包含"恭喜"字样，所以允许系统消息
+            // 游戏状态可能已经变化，所以不严格检查DRAWING状态
+            const shouldTrigger = true; // 简化：只要包含庆祝关键词就触发
+
+            if (shouldTrigger) {
               console.log('🎉 满足触发条件，调用triggerConfetti');
               triggerConfetti();
             } else {
