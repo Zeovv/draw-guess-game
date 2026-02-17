@@ -35,6 +35,13 @@ canvas {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Confetti canvas样式：确保透明且不阻挡交互 */
+canvas[style*="position: fixed"],
+canvas[style*="z-index: 9999"] {
+  pointer-events: none !important;
+  background-color: transparent !important;
+}
+
 /* 防止移动端滚动（针对聊天区域） */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
@@ -624,6 +631,7 @@ input, button {
   pointer-events: none;
   z-index: 9998;
   overflow: hidden;
+  background-color: transparent; /* 确保透明背景 */
 }
 
 .confetti-particle {

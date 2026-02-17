@@ -190,8 +190,41 @@ function App() {
     cleanupCSSConfetti();
 
     if (isMobile) {
-      // 移动端：使用CSS动画，避免白屏
-      triggerCSSConfetti();
+      // 移动端：使用优化后的canvas-confetti配置，避免白屏
+      console.log('🎉 移动端使用优化canvas-confetti');
+      const mobileConfig = {
+        particleCount: 40, // 大幅减少粒子数量 (30-50)
+        spread: 50, // 减小扩散范围
+        origin: { y: 0.6 },
+        colors: ['#ff0000', '#00ff00', '#0000ff'], // 减少颜色数量
+        useWorker: false, // 移动端可能不支持Web Worker
+        zIndex: 9999,
+        disableForReducedMotion: true,
+        gravity: 0.8, // 调整重力
+        ticks: 100, // 减少动画帧数
+        scalar: 0.8 // 缩小粒子大小
+      };
+
+      // 根据性能等级进一步优化
+      if (perfLevel === 'low') {
+        mobileConfig.particleCount = 30;
+        mobileConfig.colors = ['#ff0000', '#00ff00'];
+        mobileConfig.ticks = 60;
+      } else if (perfLevel === 'medium') {
+        mobileConfig.particleCount = 35;
+      }
+
+      requestAnimationFrame(() => {
+        try {
+          console.log('🎉 移动端调用canvas-confetti');
+          confetti(mobileConfig);
+          console.log('🎉 移动端canvas-confetti调用成功');
+        } catch (error) {
+          console.error('🎉 移动端canvas-confetti调用失败:', error);
+          // 失败时回退到CSS动画
+          triggerCSSConfetti();
+        }
+      });
     } else {
       // PC端：根据用户选择，使用CSS动画或canvas-confetti
       // 这里使用CSS动画作为默认，避免潜在性能问题
@@ -271,10 +304,21 @@ function App() {
     if (typeof document !== 'undefined') {
       requestAnimationFrame(() => {
         const canvases = document.querySelectorAll('canvas');
+        const gameCanvas = canvasRef.current;
         canvases.forEach(canvas => {
-          // 检查是否是confetti创建的canvas
-          if (canvas.width > 100 && canvas.height > 100 &&
-              (canvas.style.zIndex === '9999' || canvas.style.position === 'fixed')) {
+          // 排除游戏画布
+          if (gameCanvas && canvas === gameCanvas) return;
+
+          // 清理confetti创建的canvas：检查样式特征
+          const style = canvas.style;
+          const isConfettiCanvas =
+            style.position === 'fixed' ||
+            style.zIndex === '9999' ||
+            (canvas.width > 100 && canvas.height > 100 &&
+             (style.zIndex === '9999' || style.position === 'fixed'));
+
+          if (isConfettiCanvas) {
+            console.log('🎉 清理confetti canvas');
             canvas.remove();
           }
         });
