@@ -170,12 +170,17 @@ function App() {
 
   // 优化的庆祝特效（手机友好，大幅性能优化）
   const triggerConfetti = () => {
+    console.log('🎉 triggerConfetti 被调用');
     const isMobile = isMobileDevice();
     const perfLevel = getDevicePerformanceLevel();
+    console.log(`设备检测: isMobile=${isMobile}, perfLevel=${perfLevel}`);
 
     // 防抖机制：避免短时间内多次触发
     const now = Date.now();
-    if (now - lastConfettiTimeRef.current < 5000) { // 5秒内只触发一次
+    const timeSinceLast = now - lastConfettiTimeRef.current;
+    console.log(`防抖检查: 上次触发 ${timeSinceLast}ms 前`);
+    if (timeSinceLast < 5000) { // 5秒内只触发一次
+      console.log('防抖生效: 5秒内只触发一次');
       return;
     }
     lastConfettiTimeRef.current = now;
@@ -192,6 +197,7 @@ function App() {
       // 这里使用CSS动画作为默认，避免潜在性能问题
       // triggerCSSConfetti(); // 暂时禁用CSS动画，使用canvas-confetti
 
+      console.log('🎉 PC端使用canvas-confetti');
       // 如果需要使用canvas-confetti，可以取消下面代码的注释
       const pcConfig = {
         particleCount: 100, // 减少粒子数量
@@ -213,7 +219,13 @@ function App() {
 
       // 主礼花
       requestAnimationFrame(() => {
-        confetti(pcConfig);
+        try {
+          console.log('🎉 调用canvas-confetti');
+          confetti(pcConfig);
+          console.log('🎉 canvas-confetti调用成功');
+        } catch (error) {
+          console.error('🎉 canvas-confetti调用失败:', error);
+        }
       });
 
       // 只在性能足够时播放额外效果（使用定时器，但会清理）
@@ -272,8 +284,10 @@ function App() {
 
   // CSS庆祝特效（移动端友好，高性能）
   const triggerCSSConfetti = () => {
+    console.log('🎉 triggerCSSConfetti 被调用');
     const isMobile = isMobileDevice();
     const perfLevel = getDevicePerformanceLevel();
+    console.log(`CSS特效: isMobile=${isMobile}, perfLevel=${perfLevel}`);
 
     // 检查是否偏好减少运动
     if (typeof window !== 'undefined' && window.matchMedia &&
@@ -682,12 +696,16 @@ function App() {
 
       // 检查是否猜对消息，触发庆祝特效
       if (message.includes('猜对了') || message.includes('恭喜')) {
+        console.log(`🎉 检测到庆祝消息: "${message}", gameState=${gameState}, nickname=${nickname}`);
         // 使用setTimeout延迟执行，避免阻塞主线程
         setTimeout(() => {
           try {
             // 只在游戏进行中且不是系统消息时触发
             if (gameState === 'DRAWING' && nickname !== '系统') {
+              console.log('🎉 满足触发条件，调用triggerConfetti');
               triggerConfetti();
+            } else {
+              console.log(`🎉 不满足触发条件: gameState=${gameState}, nickname=${nickname}`);
             }
           } catch (error) {
             console.warn('Confetti特效触发失败:', error);
