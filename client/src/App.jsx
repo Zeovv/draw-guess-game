@@ -103,6 +103,11 @@ function App() {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showBrushSizePicker, setShowBrushSizePicker] = useState(false);
 
+  // ========== Confetti性能优化 ==========
+  const confettiCleanupRef = useRef([]); // 存储需要清理的定时器
+  const lastConfettiTimeRef = useRef(0);
+  const cssConfettiRef = useRef([]); // 存储CSS庆祝元素的引用
+
   // ========== 业务逻辑函数 ==========
 
   // 格式化提示数组为显示字符串
@@ -119,35 +124,313 @@ function App() {
     return validHints.join(' | ');
   };
 
-  // 触发庆祝特效
+  // 检测是否为移动设备
+  const isMobileDevice = () => {
+    // 安全检查：确保在浏览器环境中
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+      return false;
+    }
+
+    try {
+      // 用户代理检测
+      const userAgent = navigator.userAgent || navigator.vendor || window.opera || '';
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+
+      // 屏幕尺寸检测（额外检查）
+      const isSmallScreen = window.innerWidth <= 768;
+
+      return isMobile || isSmallScreen;
+    } catch (error) {
+      console.warn('设备检测失败:', error);
+      return false; // 默认按非移动设备处理
+    }
+  };
+
+  // 移动设备性能等级检测（更简单的检测）
+  const getDevicePerformanceLevel = () => {
+    if (typeof navigator === 'undefined') return 'medium';
+
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isLowEndMobile = /android.*[0-4]\.[0-9]|iphone.*[0-7]_|ipad.*[0-7]_/.test(userAgent);
+
+    if (isLowEndMobile) {
+      return 'low';
+    }
+
+    // 检查内存和硬件并发
+    const hasLowMemory = navigator.deviceMemory && navigator.deviceMemory < 4;
+    const hasLowCores = navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4;
+
+    if (hasLowMemory || hasLowCores) {
+      return 'medium';
+    }
+
+    return 'high';
+  };
+
+  // 优化的庆祝特效（手机友好，大幅性能优化）
   const triggerConfetti = () => {
-    confetti({
-      particleCount: 150,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff']
+    const isMobile = isMobileDevice();
+    const perfLevel = getDevicePerformanceLevel();
+
+    // 防抖机制：避免短时间内多次触发
+    const now = Date.now();
+    if (now - lastConfettiTimeRef.current < 5000) { // 5秒内只触发一次
+      return;
+    }
+    lastConfettiTimeRef.current = now;
+
+    // 清理之前的资源
+    cleanupConfetti();
+    cleanupCSSConfetti();
+
+    if (isMobile) {
+      // 移动端：使用CSS动画，避免白屏
+      triggerCSSConfetti();
+    } else {
+      // PC端：根据用户选择，使用CSS动画或canvas-confetti
+      // 这里使用CSS动画作为默认，避免潜在性能问题
+      triggerCSSConfetti();
+
+      // 如果需要使用canvas-confetti，可以取消下面代码的注释
+      /*
+      const pcConfig = {
+        particleCount: 100, // 减少粒子数量
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#ff0000', '#00ff00', '#0000ff', '#ffff00'],
+        useWorker: true,
+        zIndex: 9999
+      };
+
+      // 根据性能等级调整
+      if (perfLevel === 'low') {
+        pcConfig.particleCount = 60;
+        pcConfig.colors = ['#ff0000', '#00ff00', '#0000ff'];
+      } else if (perfLevel === 'high') {
+        pcConfig.particleCount = 120;
+        pcConfig.colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff'];
+      }
+
+      // 主礼花
+      requestAnimationFrame(() => {
+        confetti(pcConfig);
+      });
+
+      // 只在性能足够时播放额外效果（使用定时器，但会清理）
+      if (perfLevel !== 'low') {
+        const sideConfetti = (angle, colors, delay) => {
+          const timerId = setTimeout(() => {
+            requestAnimationFrame(() => {
+              confetti({
+                particleCount: perfLevel === 'medium' ? 40 : 60,
+                angle,
+                spread: 50,
+                origin: { x: angle === 60 ? 0 : 1, y: 0.6 },
+                colors,
+                useWorker: true,
+                zIndex: 9999
+              });
+            });
+          }, delay);
+          confettiCleanupRef.current.push(timerId);
+        };
+
+        sideConfetti(60, ['#ff0000', '#00ff00', '#0000ff'], 300);
+
+        if (perfLevel === 'high') {
+          sideConfetti(120, ['#ffff00', '#ff00ff'], 600);
+        }
+      }
+      */
+    }
+  };
+
+  // 清理confetti资源
+  const cleanupConfetti = () => {
+    // 清理所有定时器
+    confettiCleanupRef.current.forEach(timerId => {
+      clearTimeout(timerId);
+    });
+    confettiCleanupRef.current = [];
+
+    // 清理CSS庆祝元素
+    cleanupCSSConfetti();
+
+    // 尝试清理canvas元素
+    if (typeof document !== 'undefined') {
+      requestAnimationFrame(() => {
+        const canvases = document.querySelectorAll('canvas');
+        canvases.forEach(canvas => {
+          // 检查是否是confetti创建的canvas
+          if (canvas.width > 100 && canvas.height > 100 &&
+              (canvas.style.zIndex === '9999' || canvas.style.position === 'fixed')) {
+            canvas.remove();
+          }
+        });
+      });
+    }
+  };
+
+  // CSS庆祝特效（移动端友好，高性能）
+  const triggerCSSConfetti = () => {
+    const isMobile = isMobileDevice();
+    const perfLevel = getDevicePerformanceLevel();
+
+    // 防抖机制：避免短时间内多次触发
+    const now = Date.now();
+    if (now - lastConfettiTimeRef.current < 5000) { // 5秒内只触发一次
+      return;
+    }
+    lastConfettiTimeRef.current = now;
+
+    // 检查是否偏好减少运动
+    if (typeof window !== 'undefined' && window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return; // 用户偏好减少运动，跳过特效
+    }
+
+    // 检查页面是否可见（标签页在后台时不播放动画）
+    if (typeof document !== 'undefined' && document.hidden) {
+      return;
+    }
+
+    // 清理之前的CSS粒子
+    cleanupCSSConfetti();
+
+    // 创建庆祝遮罩层
+    const overlay = document.createElement('div');
+    overlay.className = 'celebration-overlay';
+    overlay.id = 'celebration-overlay-' + Date.now();
+
+    // 添加脉冲效果
+    if (perfLevel !== 'low') {
+      const pulse = document.createElement('div');
+      pulse.className = 'celebration-pulse';
+      overlay.appendChild(pulse);
+
+      // 脉冲结束后移除
+      setTimeout(() => {
+        if (pulse.parentNode) {
+          pulse.remove();
+        }
+      }, 1500);
+    }
+
+    // 粒子数量和类型根据设备和性能等级调整
+    let particleCount = 30;
+    let useExplosion = true;
+
+    if (isMobile) {
+      particleCount = perfLevel === 'low' ? 15 : perfLevel === 'medium' ? 20 : 25;
+      useExplosion = perfLevel !== 'low';
+    } else {
+      particleCount = perfLevel === 'low' ? 40 : perfLevel === 'medium' ? 60 : 80;
+    }
+
+    // 创建粒子
+    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff'];
+
+    for (let i = 0; i < particleCount; i++) {
+      const particle = document.createElement('div');
+      particle.className = 'confetti-particle';
+
+      // 随机颜色
+      const colorIndex = i % colors.length;
+      const color = colors[colorIndex];
+      particle.style.backgroundColor = color;
+
+      // 随机位置
+      const startX = Math.random() * 100;
+      particle.style.left = startX + '%';
+      particle.style.top = '-10px';
+
+      // 随机大小（稍微变化）
+      const size = isMobile ? 4 + Math.random() * 4 : 6 + Math.random() * 6;
+      particle.style.width = size + 'px';
+      particle.style.height = size + 'px';
+
+      // 选择动画类型
+      if (useExplosion && Math.random() > 0.5) {
+        // 爆炸效果粒子
+        particle.classList.add('explosion');
+        const centerX = 50; // 屏幕中心
+        const centerY = 30;
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 30 + Math.random() * 50;
+        const tx = Math.cos(angle) * distance;
+        const ty = Math.sin(angle) * distance;
+
+        particle.style.setProperty('--tx', tx + 'vw');
+        particle.style.setProperty('--ty', ty + 'vh');
+        particle.style.left = centerX + '%';
+        particle.style.top = centerY + '%';
+
+        // 随机动画时长
+        const duration = 0.8 + Math.random() * 0.4;
+        particle.style.animationDuration = duration + 's';
+      } else {
+        // 下落效果粒子
+        particle.classList.add('fall');
+
+        // 随机动画时长和延迟
+        const duration = 1.5 + Math.random() * 1.0;
+        const delay = Math.random() * 0.5;
+        particle.style.animationDuration = duration + 's';
+        particle.style.animationDelay = delay + 's';
+      }
+
+      overlay.appendChild(particle);
+
+      // 动画结束后移除粒子
+      const animationDuration = parseFloat(particle.style.animationDuration || '2') * 1000;
+      const animationDelay = parseFloat(particle.style.animationDelay || '0') * 1000;
+
+      setTimeout(() => {
+        if (particle.parentNode) {
+          particle.remove();
+        }
+      }, animationDuration + animationDelay + 100);
+    }
+
+    // 添加到页面
+    document.body.appendChild(overlay);
+
+    // 3秒后移除整个遮罩层
+    setTimeout(() => {
+      if (overlay.parentNode) {
+        overlay.remove();
+      }
+    }, 3000);
+
+    // 存储引用用于清理
+    if (!cssConfettiRef.current) {
+      cssConfettiRef.current = [];
+    }
+    cssConfettiRef.current.push(overlay);
+  };
+
+  // 清理CSS庆祝特效
+  const cleanupCSSConfetti = () => {
+    if (!cssConfettiRef.current) return;
+
+    cssConfettiRef.current.forEach(overlay => {
+      if (overlay.parentNode) {
+        overlay.remove();
+      }
     });
 
-    // 额外的小礼花
-    setTimeout(() => {
-      confetti({
-        particleCount: 100,
-        angle: 60,
-        spread: 55,
-        origin: { x: 0, y: 0.6 },
-        colors: ['#ff0000', '#00ff00', '#0000ff']
-      });
-    }, 250);
+    cssConfettiRef.current = [];
 
-    setTimeout(() => {
-      confetti({
-        particleCount: 100,
-        angle: 120,
-        spread: 55,
-        origin: { x: 1, y: 0.6 },
-        colors: ['#ffff00', '#ff00ff', '#00ffff']
+    // 清理页面中可能残留的庆祝元素
+    if (typeof document !== 'undefined') {
+      const elements = document.querySelectorAll('.celebration-overlay, .celebration-pulse');
+      elements.forEach(el => {
+        if (el.parentNode) {
+          el.remove();
+        }
       });
-    }, 500);
+    }
   };
 
   // 加入房间
@@ -408,7 +691,18 @@ function App() {
 
       // 检查是否猜对消息，触发庆祝特效
       if (message.includes('猜对了') || message.includes('恭喜')) {
-        triggerConfetti();
+        // 使用setTimeout延迟执行，避免阻塞主线程
+        setTimeout(() => {
+          try {
+            // 只在游戏进行中且不是系统消息时触发
+            if (gameState === 'DRAWING' && nickname !== '系统') {
+              triggerConfetti();
+            }
+          } catch (error) {
+            console.warn('Confetti特效触发失败:', error);
+            // 静默失败，不影响游戏体验
+          }
+        }, 100); // 100ms延迟，确保UI更新完成
       }
     });
 
@@ -622,6 +916,9 @@ function App() {
       socket.off('round_end');
       socket.off('game_end');
       socket.off('error');
+
+      // 清理confetti资源
+      cleanupConfetti();
 
       listenersRegistered.current = false;
     };
