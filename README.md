@@ -11,12 +11,7 @@
 
 ## ✨ 在线演示
 
-**🎮 立即试玩**: [https://draw-guess-game.vercel.app](https://draw-guess-game.vercel.app)
-
-<!--
-![游戏截图](https://via.placeholder.com/800x450/FF6B6B/FFFFFF?text=Draw+%26+Guess+Game+Screenshot)
-*游戏界面截图 - 实际效果更佳*
--->
+**🎮 立即试玩**: [https://draw-guess-game.vercel.app](https://draw-guess-game.vercel.app) or [https://www.ydig.fun/](https://www.ydig.fun/)
 
 > ⚠️ **注意**: 首次访问需要等待 Render 免费实例启动（约 30-60 秒），后端休眠后再次访问也会有类似等待时间。
 
@@ -75,89 +70,6 @@
 - **CORS** - 跨域资源共享
 - **Nodemon** - 开发热重载
 
-## 🚀 快速开始
-
-### 环境要求
-- Node.js ≥ 18.0.0
-- npm 或 yarn 包管理器
-
-### 1. 克隆项目
-```bash
-git clone https://github.com/Zeovv/draw-guess-game.git
-cd draw-guess-game
-```
-
-### 2. 后端服务启动
-```bash
-# 进入 server 目录
-cd server
-
-# 安装依赖
-npm install
-
-# 复制环境变量文件
-cp .env.example .env
-
-# 启动开发服务器（默认端口 3001）
-node index.js
-# 或者使用 nodemon 热重载（推荐开发使用）
-npx nodemon index.js
-# 也可以添加 start 脚本到 package.json: "start": "node index.js"
-```
-
-### 3. 前端应用启动
-```bash
-# 进入 client 目录
-cd ../client
-
-# 安装依赖
-npm install
-
-# 复制环境变量文件
-cp .env.example .env
-
-# 启动开发服务器（默认端口 5173）
-npm run dev
-```
-
-### 4. 访问应用
-- 前端: [http://localhost:5173](http://localhost:5173)
-- 后端: [http://localhost:3001](http://localhost:3001)
-- 后端健康检查: [http://localhost:3001/health](http://localhost:3001/health)
-
-## 🌐 部署指南
-
-本项目支持完全免费的云部署方案：
-
-### 方案一：一键部署脚本
-我们提供了自动化部署脚本：
-- **Windows**: 运行 `deploy.ps1`
-- **Linux/macOS**: 运行 `deploy.sh`
-
-脚本会自动完成：
-1. 在 Render 创建后端服务
-2. 在 Vercel 部署前端应用
-3. 配置环境变量
-4. 返回访问链接
-
-### 方案二：手动部署
-
-#### 后端部署 (Render.com)
-1. 创建新的 Web Service
-2. 连接 GitHub 仓库
-3. 设置构建命令: `cd server && npm install`
-4. 设置启动命令: `cd server && node index.js`
-5. 环境变量: `PORT=3001`
-6. 健康检查路径: `/health`
-
-#### 前端部署 (Vercel)
-1. 导入 GitHub 仓库
-2. 根目录选择 `client`
-3. 框架选择 Vite
-4. 环境变量: `VITE_SERVER_URL=你的Render后端地址`
-5. 自动部署
-
-详细部署步骤请参考 [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
 
 ## 📁 项目结构
 
@@ -214,38 +126,6 @@ draw-guess-game/
 7. **名人/历史人物** - 影视音乐体育明星和历史人物
 8. **科技产品/品牌** - 知名科技产品和品牌
 9. **游戏/动漫** - 热门游戏和动漫作品
-
-## 🔧 开发相关
-
-### 环境变量配置
-
-#### 前端 (client/.env)
-```env
-VITE_SERVER_URL=http://localhost:3001
-# 部署时替换为 Render 后端地址
-# VITE_SERVER_URL=https://your-app.onrender.com
-```
-
-#### 后端 (server/.env)
-```env
-PORT=3001
-```
-
-### 开发命令
-
-```bash
-# 前端开发
-cd client
-npm run dev      # 启动开发服务器
-npm run build    # 构建生产版本
-npm run lint     # 代码检查
-
-# 后端开发
-cd server
-node index.js    # 启动服务器
-# 或使用 nodemon 热重载（推荐开发使用）
-npx nodemon index.js
-```
 
 ### 贡献指南
 1. Fork 本仓库
